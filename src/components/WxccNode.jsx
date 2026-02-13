@@ -2,7 +2,6 @@
 import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 
-// --- Styles ---
 const styles = {
   nodeContainer: {
     minWidth: '250px',
@@ -11,7 +10,7 @@ const styles = {
     borderRadius: '8px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     border: '1px solid #e0e0e0',
-    overflow: 'visible', // Must be visible for handles to sit outside
+    overflow: 'visible',
     fontFamily: '"CiscoSans", sans-serif',
     fontSize: '13px',
     position: 'relative'
@@ -34,9 +33,9 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '16px',
     color: '#fff',
-    flexShrink: 0
+    flexShrink: 0,
+    fontSize: '14px'
   }),
   titleBox: {
     display: 'flex',
@@ -62,13 +61,12 @@ const styles = {
     gap: '8px',
     background: '#fafafa',
     borderBottomLeftRadius: '8px',
-    borderBottomRightRadius: '8px',
-    position: 'relative' // Needed for relative handle positioning
+    borderBottomRightRadius: '8px'
   },
   linkRow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'flex-end', // Pushes everything to the right
+    justifyContent: 'flex-end', 
     position: 'relative',
     height: '28px',
     marginBottom: '2px'
@@ -98,20 +96,29 @@ const styles = {
     textAlign: 'left',
     fontSize: '12px'
   },
-  // Handles
+  sectionTitle: {
+    fontSize: '11px',
+    fontWeight: 'bold',
+    color: '#999',
+    textTransform: 'uppercase',
+    marginTop: '6px',
+    marginBottom: '4px',
+    paddingLeft: '2px'
+  },
   handleLeft: { 
-    position: 'absolute',
-    top: '24px', // Aligns roughly with the first row in the body
-    left: '-5px', 
+    left: '-6px', 
     width: '10px', 
     height: '10px', 
     background: '#555',
     border: '2px solid #fff',
     borderRadius: '50%',
-    zIndex: 50 // Ensure it's clickable
+    zIndex: 50,
+    position: 'absolute',
+    top: '50%', // Centers vertically within the ROW
+    transform: 'translateY(-50%)'
   },
   handleRight: { 
-    right: '-5px', 
+    right: '-6px', 
     width: '10px', 
     height: '10px', 
     background: '#555', 
@@ -120,7 +127,7 @@ const styles = {
     zIndex: 50
   },
   handleError: {
-    right: '-5px', 
+    right: '-6px', 
     width: '8px', 
     height: '8px', 
     background: '#999', 
@@ -128,7 +135,6 @@ const styles = {
     borderRadius: '50%',
     zIndex: 50
   },
-  // New style for Success label
   successLabel: {
     marginRight: '12px',
     color: '#555',
@@ -137,7 +143,7 @@ const styles = {
   }
 };
 
-const getCategoryInfo = (type) => {
+const getNodeInfo = (type) => {
   const t = (type || '').toLowerCase();
   
   if (t.includes('ivr-menu') || t.includes('menu')) return { bg: '#F2D075', label: 'Menu' };
@@ -154,8 +160,9 @@ const getCategoryInfo = (type) => {
   if (t.includes('blind-transfer')) return { bg: '#25AB69', label: 'Blind Transfer' };
   if (t.includes('hand-off') || t.includes('subflow')) return { bg: '#7B1FA2', label: 'Subflow / Handoff' };
   if (t.includes('disconnect')) return { bg: '#F47E7E', label: 'Disconnect' };
+  if (t.includes('start') || t.includes('newphone')) return { bg: '#25AB69', label: 'Start' };
   
-  return { bg: '#607D8B', label: t };
+  return { bg: '#607D8B', label: type }; 
 };
 
 // Define valid exits to avoid showing unnecessary handles
@@ -164,21 +171,24 @@ const getValidExits = (type) => {
   if (t.includes('menu') || t.includes('collect')) return ['timeout', 'invalid', 'error'];
   if (t.includes('queue')) return ['insufficient_data', 'error'];
   if (t.includes('transfer')) return ['busy', 'no_answer', 'invalid', 'error'];
-  if (t.includes('disconnect')) return []; // Disconnect has no exits
-  return ['error']; // Default error handler for most nodes
+  if (t.includes('disconnect')) return []; 
+  return ['error']; // Default error handler
 };
 
 const WxccNode = ({ data }) => {
   const { nodeType, details } = data;
-  const { bg, label } = getCategoryInfo(nodeType);
+  const { bg, label } = getNodeInfo(nodeType);
   const validExits = getValidExits(nodeType);
 
   const t = (nodeType || '').toLowerCase();
   const isMenu = t.includes('ivr-menu');
   const isCase = t.includes('case');
   const isCondition = t.includes('condition') || t.includes('business-hours');
-  const isDisconnect = t.includes('disconnect');
   
+  const isStart = t.includes('start') || t.includes('newphone');
+  const isEnd = t.includes('disconnect') || t.includes('blind-transfer') || t.includes('hand-off');
+
+  // Menu Links
   let menuLinks = [];
   if (isMenu && details?.menuLinks) {
     details.menuLinks.forEach((linkKey, idx) => {
@@ -187,6 +197,7 @@ const WxccNode = ({ data }) => {
     });
   }
 
+  // Case Links
   let caseLinks = [];
   if (isCase && details?.menuLinks) {
       details.menuLinks.forEach((linkKey, idx) => {
@@ -197,16 +208,23 @@ const WxccNode = ({ data }) => {
     });
   }
 
+  // Logic to ensure the Input Handle appears exactly once, aligned with the top exit row
+  let inputRendered = false;
+
+  const RowWithInput = ({ children }) => {
+    const shouldRenderInput = !isStart && !inputRendered;
+    if (shouldRenderInput) inputRendered = true;
+
+    return (
+      <>
+        {shouldRenderInput && <Handle type="target" position={Position.Left} style={styles.handleLeft} />}
+        {children}
+      </>
+    );
+  };
+
   return (
     <div style={styles.nodeContainer}>
-      
-      {/* Global Input Handle (Left)
-        Positioned relative to body to align with top exit of neighbor
-      */}
-      <div style={{position: 'absolute', top: 70, left: 0, width: '100%'}}>
-        <Handle type="target" position={Position.Left} style={styles.handleLeft} />
-      </div>
-
       <div style={styles.header}>
         <div style={styles.iconBox(bg)}><span>●</span></div>
         <div style={styles.titleBox}>
@@ -220,44 +238,49 @@ const WxccNode = ({ data }) => {
         {/* --- MENU LINKS --- */}
         {isMenu && menuLinks.map((link) => (
             <div key={link.id} style={styles.linkRow}>
+                <RowWithInput />
                 <div style={styles.digitPill}>{link.digit}</div>
                 <div style={styles.descBox} title={link.label}>{link.label}</div>
                 <Handle type="source" position={Position.Right} id={link.id} style={styles.handleRight} />
             </div>
         ))}
 
-        {/* --- CASE / CONDITION LINKS --- */}
+        {/* --- CASE LINKS --- */}
         {(isCase || isCondition) && (
             <>
             {caseLinks.map((link) => (
                 <div key={link.id} style={styles.linkRow}>
+                    <RowWithInput />
                     <div style={styles.descBox} title={link.label}>{link.label}</div>
                     <Handle type="source" position={Position.Right} id={link.id} style={styles.handleRight} />
                 </div>
             ))}
             <div style={styles.linkRow}>
+                <RowWithInput />
                 <div style={styles.descBox}>Default</div>
                 <Handle type="source" position={Position.Right} id="default" style={styles.handleRight} />
-                {/* Fallback for '0' */}
                 <Handle type="source" position={Position.Right} id="0" style={{opacity: 0, right: '-5px'}} />
             </div>
             </>
         )}
 
         {/* --- STANDARD SUCCESS OUTPUT --- */}
-        {/* Only rendered if NOT a branching node and NOT a disconnect node */}
-        {!isMenu && !isCase && !isCondition && !isDisconnect && (
+        {/* Only rendered if NOT branching and NOT an End node */}
+        {!isMenu && !isCase && !isCondition && !isEnd && (
              <div style={styles.linkRow}>
+                <RowWithInput />
                 <span style={styles.successLabel}>Success</span>
                 <Handle type="source" position={Position.Right} id="default" style={styles.handleRight} />
              </div>
         )}
 
         {/* --- ERROR HANDLING --- */}
-        {!isDisconnect && validExits.length > 0 && (
+        {validExits.length > 0 && (
             <div style={{borderTop: '1px solid #f0f0f0', marginTop: 5, paddingTop: 5}}>
                 {validExits.map(key => (
                     <div key={key} style={{...styles.linkRow, height: 20}}>
+                    {/* If this node had NO success outputs (like Disconnect), Input must go here */}
+                    <RowWithInput />
                     <span style={{marginRight: 12, fontSize: 11, color: '#999'}}>{key === 'error' ? 'Undefined Error' : key}</span>
                     <Handle 
                         type="source" 
@@ -268,6 +291,14 @@ const WxccNode = ({ data }) => {
                 </div>
                 ))}
             </div>
+        )}
+
+        {/* --- CATCH-ALL INPUT --- */}
+        {/* If node is not Start, but has NO exits at all (rare disconnect with no error), we still need an input handle */}
+        {!isStart && !inputRendered && (
+             <div style={{position: 'absolute', top: 15, left: 0}}>
+                <Handle type="target" position={Position.Left} style={styles.handleLeft} />
+             </div>
         )}
 
       </div>
