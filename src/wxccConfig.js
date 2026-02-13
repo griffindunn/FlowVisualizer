@@ -24,13 +24,12 @@ import DisconnectNode from './components/nodes/DisconnectNode';
 import DefaultNode from './components/nodes/DefaultNode';
 
 // --- Detail Panels ---
-// (Keep your existing imports from the previous step here)
 import MenuDetails from './components/details/MenuDetails';
 import CollectDigitsDetails from './components/details/CollectDigitsDetails';
 import PlayMessageDetails from './components/details/PlayMessageDetails';
 import PlayMusicDetails from './components/details/PlayMusicDetails';
 import SetVariableDetails from './components/details/SetVariableDetails';
-import ConditionDetails from './components/details/ConditionDetails'; // Used for Case & Condition
+import ConditionDetails from './components/details/ConditionDetails';
 import BusinessHoursDetails from './components/details/BusinessHoursDetails';
 import QueueContactDetails from './components/details/QueueContactDetails';
 import QueueLookupDetails from './components/details/QueueLookupDetails';
@@ -49,7 +48,7 @@ export const getNodeConfig = (type) => {
   if (t.includes('play-music'))    return { ...NODE_COLORS.blue, label: 'Play Music', component: PlayMusicNode, detailComponent: PlayMusicDetails };
   
   // Logic
-  if (t.includes('case'))          return { ...NODE_COLORS.yellow, label: 'Case', component: CaseNode, detailComponent: ConditionDetails }; // Case uses Condition details usually
+  if (t.includes('case'))          return { ...NODE_COLORS.yellow, label: 'Case', component: CaseNode, detailComponent: ConditionDetails };
   if (t.includes('condition'))     return { ...NODE_COLORS.yellow, label: 'Condition', component: ConditionNode, detailComponent: ConditionDetails };
   if (t.includes('business'))      return { ...NODE_COLORS.yellow, label: 'Business Hours', component: BusinessHoursNode, detailComponent: BusinessHoursDetails };
 
@@ -74,4 +73,16 @@ export const getNodeConfig = (type) => {
   return { ...NODE_COLORS.grey, label: 'Activity', component: DefaultNode, detailComponent: DefaultDetails };
 };
 
-// Keep getValidExits same as before...
+export const getValidExits = (type) => {
+  const t = (type || '').toLowerCase();
+  
+  if (t.includes('menu')) return ['timeout', 'invalid', 'error'];
+  if (t.includes('collect')) return ['timeout', 'interrupted', 'error'];
+  if (t.includes('http') || t.includes('bre')) return ['timeout', 'error'];
+  if (t.includes('lookup')) return ['insufficient_data', 'failure', 'error'];
+  if (t.includes('queue-contact')) return ['failure', 'error'];
+  if (t.includes('transfer') || t.includes('hand-off')) return ['busy', 'no_answer', 'invalid', 'error'];
+  if (t.includes('disconnect')) return []; 
+  
+  return ['error']; 
+};
