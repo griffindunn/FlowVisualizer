@@ -1,13 +1,13 @@
-// src/wxccConfig.js
+import { NODE_COLORS } from './styles/nodeColors'; 
 
-// Import Graph Nodes
+// Import Graph Components
 import MenuNode from './components/nodes/MenuNode';
 import LogicNode from './components/nodes/LogicNode';
-import ActionNode from './components/nodes/ActionNode'; // Generic Linear
-import TerminatorNode from './components/nodes/TerminatorNode'; // Ends of flow
+import ActionNode from './components/nodes/ActionNode';
+import TerminatorNode from './components/nodes/TerminatorNode';
 import StartNode from './components/nodes/StartNode';
 
-// Import Detail Panels
+// Import Detail Components
 import MenuDetails from './components/details/MenuDetails';
 import CollectDigitsDetails from './components/details/CollectDigitsDetails';
 import PlayMessageDetails from './components/details/PlayMessageDetails';
@@ -22,23 +22,12 @@ import SubflowDetails from './components/details/SubflowDetails';
 import StartDetails from './components/details/StartDetails';
 import DefaultDetails from './components/details/DefaultDetails';
 
-export const NODE_COLORS = {
-  blue:   { bg: '#E1F5FE', border: '#0277BD', header: '#0277BD', label: 'Interaction' },
-  yellow: { bg: '#FFF8E1', border: '#FF8F00', header: '#FFB300', label: 'Logic' },
-  grey:   { bg: '#F5F5F5', border: '#757575', header: '#757575', label: 'Data' },
-  orange: { bg: '#FFF3E0', border: '#EF6C00', header: '#EF6C00', label: 'Queue' },
-  green:  { bg: '#E8F5E9', border: '#2E7D32', header: '#43A047', label: 'Transfer' },
-  red:    { bg: '#FFEBEE', border: '#C62828', header: '#D32F2F', label: 'Disconnect' },
-  purple: { bg: '#F3E5F5', border: '#7B1FA2', header: '#8E24AA', label: 'Subflow' },
-  teal:   { bg: '#E0F2F1', border: '#00695C', header: '#00897B', label: 'Start' }
-};
-
 export const getNodeConfig = (type) => {
   const t = (type || '').toLowerCase();
 
   // --- Interaction ---
   if (t.includes('ivr-menu'))      return { ...NODE_COLORS.blue, label: 'Menu', component: MenuNode, detailComponent: MenuDetails };
-  if (t.includes('collect'))       return { ...NODE_COLORS.blue, label: 'Collect Digits', component: ActionNode, detailComponent: CollectDigitsDetails };
+  if (t.includes('collect'))       return { ...NODE_COLORS.blue, label: 'Collect Digits', component: MenuNode, detailComponent: CollectDigitsDetails };
   if (t.includes('play-message'))  return { ...NODE_COLORS.blue, label: 'Play Message', component: ActionNode, detailComponent: PlayMessageDetails };
   if (t.includes('play-music'))    return { ...NODE_COLORS.blue, label: 'Play Music', component: ActionNode, detailComponent: PlayMusicDetails };
   
@@ -50,7 +39,8 @@ export const getNodeConfig = (type) => {
   // --- Data ---
   if (t.includes('set'))           return { ...NODE_COLORS.grey, label: 'Set Variable', component: ActionNode, detailComponent: SetVariableDetails };
   if (t.includes('queue-lookup'))  return { ...NODE_COLORS.grey, label: 'Queue Lookup', component: ActionNode, detailComponent: QueueLookupDetails };
-  // Default Data handlers
+  
+  // Default Data handlers (HTTP, Parse, BRE, Function)
   if (t.includes('parse') || t.includes('http') || t.includes('bre') || t.includes('fn')) 
                                    return { ...NODE_COLORS.grey, label: 'System Activity', component: ActionNode, detailComponent: DefaultDetails };
   
@@ -63,7 +53,7 @@ export const getNodeConfig = (type) => {
   if (t.includes('subflow'))       return { ...NODE_COLORS.purple, label: 'Subflow', component: ActionNode, detailComponent: SubflowDetails };
   if (t.includes('start') || t.includes('newphone')) return { ...NODE_COLORS.teal, label: 'Start', component: StartNode, detailComponent: StartDetails };
 
-  return { ...NODE_COLORS.grey, label: 'Unknown', component: ActionNode, detailComponent: DefaultDetails };
+  return { ...NODE_COLORS.grey, label: 'Activity', component: ActionNode, detailComponent: DefaultDetails };
 };
 
 export const getValidExits = (type) => {
