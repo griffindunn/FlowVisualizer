@@ -13,7 +13,6 @@ const MenuNode = ({ data, selected }) => {
   return (
     <BaseNodeShell data={data} selected={selected}>
       {links.length > 0 && <div style={row.sectionTitle}>Choices</div>}
-      
       {links.map(link => (
         <div key={link.id} style={row.container}>
           <div style={row.pill}>{link.id}</div>
@@ -21,7 +20,6 @@ const MenuNode = ({ data, selected }) => {
           <Handle type="source" position={Position.Right} id={link.id} style={row.handleRight} />
         </div>
       ))}
-
       <div style={row.divider} />
       {['timeout', 'invalid', 'error'].map(key => (
         <div key={key} style={row.errorContainer}>
