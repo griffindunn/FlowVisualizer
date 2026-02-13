@@ -1,5 +1,6 @@
+// src/components/nodes/nodeRowStyles.js
 export const nodeRowStyles = {
-  // The row container: strictly relative so the handle stays inside IT
+  // Standard container for all rows
   container: {
     display: 'flex', 
     alignItems: 'center', 
@@ -7,16 +8,28 @@ export const nodeRowStyles = {
     height: '24px', 
     paddingRight: '12px', 
     marginBottom: '4px', 
-    position: 'relative', // Critical for handle positioning
+    position: 'relative', 
     width: '100%'
   },
-  // Error container: same strict positioning
+  // NEW: Specifically for the top-most row to ensure alignment with Input handle
+  firstRowContainer: {
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'flex-end',
+    height: '24px', 
+    paddingRight: '12px', 
+    marginBottom: '4px', 
+    position: 'relative', 
+    width: '100%',
+    marginTop: '10px' // Adds fixed spacing from the header
+  },
+  // ... (keep the rest of your styles the same: errorContainer, sectionTitle, etc.)
   errorContainer: {
     display: 'flex', 
     alignItems: 'center', 
     justifyContent: 'flex-end',
     height: '24px', 
-    paddingRight: '12px',
+    paddingRight: '12px', 
     position: 'relative',
     width: '100%',
     marginTop: '2px'
@@ -38,11 +51,10 @@ export const nodeRowStyles = {
   errorLabel: { fontSize: '10px', color: '#999' },
   divider: { height: '1px', background: '#eee', margin: '6px 0' },
   
-  // Handles: Strictly centered vertically within the 24px row
   handleRight: { 
     right: '-6px', width: '10px', height: '10px', background: '#555', 
     border: '2px solid #fff', borderRadius: '50%', zIndex: 10,
-    top: '50%', transform: 'translateY(-50%)' // Centers it perfectly
+    top: '50%', transform: 'translateY(-50%)' 
   },
   handleError: { 
     right: '-6px', width: '8px', height: '8px', background: '#d32f2f', 
