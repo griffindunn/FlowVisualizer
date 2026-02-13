@@ -13,7 +13,7 @@ const SubflowNode = ({ data, selected }) => {
          <div style={{fontSize: '12px', fontWeight:'bold', color: '#7B1FA2'}}>{name}</div>
       </div>
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <span style={row.successLabel}>Success</span>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
