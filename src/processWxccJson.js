@@ -18,7 +18,8 @@ export const transformWxccJson = (json) => {
 
     Object.values(activities).forEach((activity, index) => {
       const widget = widgets[activity.id];
-      let x = 0, y = 0;
+      let x = 0;
+      let y = 0;
 
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
@@ -26,7 +27,8 @@ export const transformWxccJson = (json) => {
       } else {
         const row = Math.floor(index / 5);
         const col = index % 5;
-        x = col * 450; y = row * 300;
+        x = col * 450; 
+        y = row * 300;
       }
       y = y + (isEvent ? currentYOffset : 0);
 
@@ -53,13 +55,17 @@ export const transformWxccJson = (json) => {
         let sourceHandleId = link.conditionExpr;
         
         // --- EDGE COLOR LOGIC ---
-        // Normalizes 'out', 'true', 'success' to 'default' (Grey)
+        // 1. Normalize Success/Default paths to 'default'
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out' || sourceHandleId === 'success') {
              sourceHandleId = 'default';
         }
 
-        // Only these specific keywords trigger Red lines
-        const isErrorPath = ['error', 'timeout', 'invalid', 'false', 'failure', 'insufficient_data'].includes(sourceHandleId);
+        // 2. Strict Error Checking: Only paint RED if it matches these exact error keywords
+        const isErrorPath = [
+          'error', 'timeout', 'invalid', 'false', 
+          'failure', 'insufficient_data', 'insufficientdata',
+          'busy', 'no_answer'
+        ].includes(sourceHandleId);
 
         edges.push({
           id: `${prefix}${link.id}`,
