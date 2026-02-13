@@ -1,3 +1,5 @@
 import SimpleActionNode from './SimpleActionNode';
 import React, { memo } from 'react';
-export default memo((props) => <SimpleActionNode {...props} exits={['error']} />);
+
+// Force 'exits' to be empty to prevent the "Undefined Error" handle
+export default memo((props) => <SimpleActionNode {...props} exits={[]} />);
