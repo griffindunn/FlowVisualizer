@@ -1,60 +1,60 @@
-const EDGE_TYPE = 'smoothstep'; 
+// src/processWxccJson.js
+const EDGE_TYPE = 'smoothstep'; // 'default', 'straight', 'step', 'smoothstep'
 
 export const transformWxccJson = (json) => {
   const nodes = [];
   const edges = [];
   let currentYOffset = 2500; 
 
-  // Helper to process a specific flow scope
   const processFlowScope = (flowData, prefix = '', isEvent = false) => {
     if (!flowData || !flowData.activities) return;
 
     const { activities, links } = flowData;
-    // Safely attempt to read widgets. Some exports nest them differently.
     const widgets = flowData.diagram?.widgets || json.diagram?.widgets || {}; 
 
-    // Convert Object to Array for iteration
     Object.values(activities).forEach((activity, index) => {
-      // 1. Try to find the layout widget for this activity
       const widget = widgets[activity.id];
       
-      // 2. Determine Coordinates
-      // Primary: Use the JSON coordinates
-      // Fallback: If missing (0,0), calculate a Grid Position (Index * Offset)
+      // 1. Coordinates
       let x = widget?.point?.x;
       let y = widget?.point?.y;
 
       if (!x && !y) {
-        // Fallback Layout: 5 nodes per row
         const row = Math.floor(index / 5);
         const col = index % 5;
-        x = col * 300; 
-        y = row * 150;
+        x = col * 350; 
+        y = row * 200;
       }
-
-      // Apply the Global Y Offset (for Event flows)
       y = y + (isEvent ? currentYOffset : 0);
+
+      // 2. Node Type Extraction (CRITICAL FIX)
+      // We look in activity.properties first, then fallback to activity root
+      const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
 
       nodes.push({
         id: `${prefix}${activity.id}`,
         type: 'wxccNode', 
-        position: { x: x, y: y },
+        position: { x, y },
         data: {
           label: activity.name,
-          nodeType: activity.activityName, // Pass the raw type for styling
+          nodeType: rawType, // Corrected Path
           details: activity.properties,    
           isEventNode: isEvent             
         },
       });
     });
 
-    // 3. Process Edges
     if (links) {
       links.forEach((link) => {
+        // We use conditionExpr (e.g., "1", "timeout") as the handle ID
+        // This allows the line to start from the specific "1" port on the node
+        const sourceHandleId = link.conditionExpr || 'default';
+        
         edges.push({
           id: `${prefix}${link.id}`,
           source: `${prefix}${link.sourceActivityId}`,
           target: `${prefix}${link.targetActivityId}`,
+          sourceHandle: sourceHandleId, // <--- Connects to specific right-side port
           type: EDGE_TYPE, 
           label: link.conditionExpr, 
           style: { stroke: isEvent ? '#999' : '#555', strokeWidth: 1.5 }, 
@@ -64,17 +64,13 @@ export const transformWxccJson = (json) => {
     }
   };
 
-  // --- Process Main Flow ---
   if (json.process) {
     console.log("Processing Main Flow...");
     processFlowScope(json.process, '', false);
   }
 
-  // --- Process Event Flows ---
   if (json.eventFlows && json.eventFlows.eventsMap) {
-    console.log("Processing Event Flows...", Object.keys(json.eventFlows.eventsMap));
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
-      // Add Header Node
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
@@ -86,7 +82,6 @@ export const transformWxccJson = (json) => {
       if (eventData.process) {
         processFlowScope(eventData.process, `${eventName}-`, true);
       }
-      // Increase offset for the next cluster
       currentYOffset += 1500;
     });
   }
