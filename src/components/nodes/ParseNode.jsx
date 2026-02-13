@@ -18,7 +18,7 @@ const ParseNode = ({ data, selected }) => {
          )}
       </div>
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <span style={row.successLabel}>Success</span>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
