@@ -36,8 +36,8 @@ export const transformWxccJson = (json) => {
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
       const config = getNodeConfig(rawType);
 
-      // Use the component's name as the 'type' string for React Flow
-      const nodeType = config.component.type ? config.component.type.name : config.component.displayName || 'DefaultNode';
+      // Use the explicit nodeType string from config
+      const nodeType = config.nodeType || 'DefaultNode';
 
       nodes.push({
         id: `${prefix}${activity.id}`,
@@ -49,7 +49,7 @@ export const transformWxccJson = (json) => {
           details: activity.properties,    
           isEventNode: isEvent             
         },
-        zIndex: 10 // Nodes stay below edges
+        zIndex: 10 
       });
     });
 
@@ -57,7 +57,6 @@ export const transformWxccJson = (json) => {
       links.forEach((link) => {
         let sourceHandleId = link.conditionExpr;
         
-        // Normalize handle IDs
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out') {
              sourceHandleId = 'default';
         }
@@ -70,7 +69,7 @@ export const transformWxccJson = (json) => {
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE,
-          zIndex: 20, // Edges stay above nodes
+          zIndex: 20, 
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 15,
@@ -88,7 +87,6 @@ export const transformWxccJson = (json) => {
   };
 
   if (json.process) {
-    console.log("Processing Main Flow...");
     processFlowScope(json.process, '', false);
   }
 
