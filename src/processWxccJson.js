@@ -1,3 +1,4 @@
+// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
@@ -18,7 +19,8 @@ export const transformWxccJson = (json) => {
 
     Object.values(activities).forEach((activity, index) => {
       const widget = widgets[activity.id];
-      let x = 0, y = 0;
+      let x = 0;
+      let y = 0;
 
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
@@ -26,16 +28,20 @@ export const transformWxccJson = (json) => {
       } else {
         const row = Math.floor(index / 5);
         const col = index % 5;
-        x = col * 450; y = row * 300;
+        x = col * 450; 
+        y = row * 300;
       }
       y = y + (isEvent ? currentYOffset : 0);
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
       const config = getNodeConfig(rawType);
 
+      // Use the component's name as the 'type' string for React Flow
+      const nodeType = config.component.type ? config.component.type.name : config.component.displayName || 'DefaultNode';
+
       nodes.push({
         id: `${prefix}${activity.id}`,
-        type: config.component.type ? config.component.type.name : config.component.displayName || 'ActionNode', // React component name
+        type: nodeType, 
         position: { x, y },
         data: {
           label: activity.name,
@@ -43,7 +49,7 @@ export const transformWxccJson = (json) => {
           details: activity.properties,    
           isEventNode: isEvent             
         },
-        zIndex: 10 
+        zIndex: 10 // Nodes stay below edges
       });
     });
 
@@ -51,6 +57,7 @@ export const transformWxccJson = (json) => {
       links.forEach((link) => {
         let sourceHandleId = link.conditionExpr;
         
+        // Normalize handle IDs
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out') {
              sourceHandleId = 'default';
         }
@@ -63,7 +70,7 @@ export const transformWxccJson = (json) => {
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE,
-          zIndex: 20, 
+          zIndex: 20, // Edges stay above nodes
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 15,
