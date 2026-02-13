@@ -5,27 +5,21 @@ import { nodeRowStyles as row } from './nodeRowStyles';
 
 const CaseNode = ({ data, selected }) => {
   const { details } = data;
-  // Case nodes typically use 'menuLinks' but map them to branches
   const branches = details?.menuLinks?.filter(k => k !== 'default' && k !== '0') || [];
 
   return (
     <BaseNodeShell data={data} selected={selected}>
       {branches.length > 0 && <div style={row.sectionTitle}>Cases</div>}
-      
       {branches.map((key) => (
          <div key={key} style={row.container}>
            <div style={row.box}>{key}</div>
            <Handle type="source" position={Position.Right} id={key} style={row.handleRight} />
          </div>
       ))}
-
       <div style={row.container}>
          <div style={row.box}>Default</div>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
-         {/* Hidden fallback handle for '0' often used in case logic */}
-         <Handle type="source" position={Position.Right} id="0" style={{...row.handleRight, opacity: 0}} />
       </div>
-
       <div style={row.divider} />
       <div style={row.errorContainer}>
          <span style={row.errorLabel}>Undefined Error</span>
