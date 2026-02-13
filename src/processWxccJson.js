@@ -10,31 +10,45 @@ export const transformWxccJson = (json) => {
     if (!flowData || !flowData.activities) return;
 
     const { activities, links } = flowData;
-    // CRITICAL FIX: Ensure we are reading the widget data from the correct path
-    const widgets = flowData.diagram?.widgets || {}; 
+    // Safely attempt to read widgets. Some exports nest them differently.
+    const widgets = flowData.diagram?.widgets || json.diagram?.widgets || {}; 
 
+    // Convert Object to Array for iteration
     Object.values(activities).forEach((activity, index) => {
-      // Look up the layout widget using the activity ID
+      // 1. Try to find the layout widget for this activity
       const widget = widgets[activity.id];
       
-      // If widget exists, use its X/Y. If not, use a basic grid fallback (index * 150)
-      // so they don't stack on top of each other.
-      const x = widget?.point?.x || (index * 250); 
-      const y = widget?.point?.y || (index * 100);
+      // 2. Determine Coordinates
+      // Primary: Use the JSON coordinates
+      // Fallback: If missing (0,0), calculate a Grid Position (Index * Offset)
+      let x = widget?.point?.x;
+      let y = widget?.point?.y;
+
+      if (!x && !y) {
+        // Fallback Layout: 5 nodes per row
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        x = col * 300; 
+        y = row * 150;
+      }
+
+      // Apply the Global Y Offset (for Event flows)
+      y = y + (isEvent ? currentYOffset : 0);
 
       nodes.push({
         id: `${prefix}${activity.id}`,
         type: 'wxccNode', 
-        position: { x: x, y: y + (isEvent ? currentYOffset : 0) },
+        position: { x: x, y: y },
         data: {
           label: activity.name,
-          nodeType: activity.activityName, 
+          nodeType: activity.activityName, // Pass the raw type for styling
           details: activity.properties,    
           isEventNode: isEvent             
         },
       });
     });
 
+    // 3. Process Edges
     if (links) {
       links.forEach((link) => {
         edges.push({
@@ -52,13 +66,15 @@ export const transformWxccJson = (json) => {
 
   // --- Process Main Flow ---
   if (json.process) {
+    console.log("Processing Main Flow...");
     processFlowScope(json.process, '', false);
   }
 
   // --- Process Event Flows ---
   if (json.eventFlows && json.eventFlows.eventsMap) {
+    console.log("Processing Event Flows...", Object.keys(json.eventFlows.eventsMap));
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
-      // Add Header
+      // Add Header Node
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
@@ -71,7 +87,7 @@ export const transformWxccJson = (json) => {
         processFlowScope(eventData.process, `${eventName}-`, true);
       }
       // Increase offset for the next cluster
-      currentYOffset += 2000;
+      currentYOffset += 1500;
     });
   }
 
