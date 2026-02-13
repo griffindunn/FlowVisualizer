@@ -16,7 +16,7 @@ const HTTPRequestNode = ({ data, selected }) => {
          </div>
       </div>
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
       <div style={row.divider} />
