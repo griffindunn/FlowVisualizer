@@ -81,18 +81,19 @@ export const getNodeConfig = (type) => {
 export const getValidExits = (type) => {
   const t = (type || '').toLowerCase();
   
-  // --- STRICT EXITS MAPPING ---
-  if (t.includes('parse')) return []; // No error handle
-  if (t.includes('fn')) return [];    // No error handle
-  if (t.includes('disconnect')) return [];
+  if (t.includes('parse')) return []; // Parse has NO error handle in your JSON
   
-  if (t.includes('case')) return ['error']; // Explicitly ADD error for Case
+  // Corrected based on your feedback:
+  if (t.includes('fn')) return ['error']; // Function HAS error handle
+  if (t.includes('collect')) return ['timeout', 'invalid', 'error']; // Will map to specific labels in node
+  
+  if (t.includes('case')) return ['error']; 
   if (t.includes('menu')) return ['timeout', 'invalid', 'error'];
-  if (t.includes('collect')) return ['timeout', 'interrupted', 'error'];
   if (t.includes('http') || t.includes('bre')) return ['timeout', 'error'];
   if (t.includes('lookup')) return ['insufficient_data', 'failure', 'error'];
   if (t.includes('queue-contact')) return ['failure', 'error'];
   if (t.includes('transfer') || t.includes('hand-off')) return ['busy', 'no_answer', 'invalid', 'error'];
+  if (t.includes('disconnect')) return []; 
   
-  return ['error']; // Default
+  return ['error']; 
 };
