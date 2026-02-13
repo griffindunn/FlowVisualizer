@@ -15,7 +15,7 @@ const HandoffNode = ({ data, selected }) => {
          </div>
       </div>
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <span style={row.successLabel}>Connected</span>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
