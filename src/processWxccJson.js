@@ -1,7 +1,7 @@
 // src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 
-const EDGE_TYPE = 'default'; // Bezier Curve
+const EDGE_TYPE = 'default'; 
 const SPACING_FACTOR_X = 2.0; 
 const SPACING_FACTOR_Y = 1.5;
 
@@ -16,9 +16,9 @@ export const transformWxccJson = (json) => {
     const { activities, links } = flowData;
     const widgets = flowData.diagram?.widgets || json.diagram?.widgets || {}; 
 
-    // 1. Process Nodes
     Object.values(activities).forEach((activity, index) => {
       const widget = widgets[activity.id];
+      
       let x = 0;
       let y = 0;
 
@@ -45,24 +45,22 @@ export const transformWxccJson = (json) => {
           details: activity.properties,    
           isEventNode: isEvent             
         },
-        // Force nodes to be lower than edges if we want edges on top
         zIndex: 10 
       });
     });
 
-    // 2. Process Edges
     if (links) {
       links.forEach((link) => {
         let sourceHandleId = link.conditionExpr;
         
-        // Normalize handle IDs
-        // If conditionExpr is empty or 'true', it's the default path
-        if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true') {
+        // --- CRITICAL FIX: Normalize WxCC output conditions ---
+        // "out" = Standard exit for SetVariable/Parse
+        // "true" / empty = Standard exit for linear nodes
+        if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out') {
              sourceHandleId = 'default';
         }
 
-        // Check if this is an error path for styling
-        const isErrorPath = ['error', 'timeout', 'invalid', 'false', 'failure'].includes(sourceHandleId);
+        const isErrorPath = ['error', 'timeout', 'invalid', 'false', 'failure', 'insufficient_data'].includes(sourceHandleId);
 
         edges.push({
           id: `${prefix}${link.id}`,
@@ -70,15 +68,15 @@ export const transformWxccJson = (json) => {
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE,
-          zIndex: 20, // Higher than nodes (10) so lines appear on top
+          zIndex: 20, 
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 15,
             height: 15,
-            color: isErrorPath ? '#D32F2F' : '#555', // Red arrow for errors
+            color: isErrorPath ? '#D32F2F' : '#555',
           },
           style: { 
-            stroke: isErrorPath ? '#D32F2F' : '#555', // Red line for errors
+            stroke: isErrorPath ? '#D32F2F' : '#555', 
             strokeWidth: 2 
           }, 
           data: { isEventEdge: isEvent }
