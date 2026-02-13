@@ -11,7 +11,7 @@ const styles = {
     borderRadius: '8px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     border: '1px solid #e0e0e0',
-    overflow: 'visible', // Allow handles to bleed out
+    overflow: 'visible', // Must be visible for handles to sit outside
     fontFamily: '"CiscoSans", sans-serif',
     fontSize: '13px',
     position: 'relative'
@@ -62,13 +62,13 @@ const styles = {
     gap: '8px',
     background: '#fafafa',
     borderBottomLeftRadius: '8px',
-    borderBottomRightRadius: '8px'
+    borderBottomRightRadius: '8px',
+    position: 'relative' // Needed for relative handle positioning
   },
-  // Row for Links
   linkRow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'flex-end', // Right align
+    justifyContent: 'flex-end', // Pushes everything to the right
     position: 'relative',
     height: '28px',
     marginBottom: '2px'
@@ -94,28 +94,21 @@ const styles = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     color: '#555',
-    marginRight: '12px', // Gap for handle
+    marginRight: '12px', 
     textAlign: 'left',
     fontSize: '12px'
   },
-  sectionTitle: {
-    fontSize: '11px',
-    fontWeight: 'bold',
-    color: '#999',
-    textTransform: 'uppercase',
-    marginTop: '6px',
-    marginBottom: '4px',
-    paddingLeft: '2px'
-  },
-  // Handles - adjusted to align centers
+  // Handles
   handleLeft: { 
-    left: '-5px', // Exact overlapping for cleaner lines
+    position: 'absolute',
+    top: '24px', // Aligns roughly with the first row in the body
+    left: '-5px', 
     width: '10px', 
     height: '10px', 
     background: '#555',
-    border: '2px solid #fff', // White ring to separate from line
+    border: '2px solid #fff',
     borderRadius: '50%',
-    zIndex: 10
+    zIndex: 50 // Ensure it's clickable
   },
   handleRight: { 
     right: '-5px', 
@@ -124,7 +117,7 @@ const styles = {
     background: '#555', 
     border: '2px solid #fff', 
     borderRadius: '50%',
-    zIndex: 10
+    zIndex: 50
   },
   handleError: {
     right: '-5px', 
@@ -132,37 +125,16 @@ const styles = {
     height: '8px', 
     background: '#999', 
     border: '2px solid #fff',
-    borderRadius: '50%'
+    borderRadius: '50%',
+    zIndex: 50
   },
-  defaultText: {
+  // New style for Success label
+  successLabel: {
     marginRight: '12px',
-    color: '#555'
+    color: '#555',
+    fontSize: '12px',
+    fontWeight: 500
   }
-};
-
-// --- Logic: Get Valid Exits per Node Type ---
-const getValidExits = (type) => {
-  const t = (type || '').toLowerCase();
-
-  // Menus / Collect Digits have timeouts and invalids
-  if (t.includes('menu') || t.includes('collect')) {
-    return ['timeout', 'invalid', 'error'];
-  }
-  // Queue has specific queue errors
-  if (t.includes('queue')) {
-    return ['insufficient_data', 'error'];
-  }
-  // Data actions just have generic error
-  if (t.includes('set') || t.includes('parse') || t.includes('http') || t.includes('bre')) {
-    return ['error'];
-  }
-  // Transfers
-  if (t.includes('transfer')) {
-    return ['busy', 'no_answer', 'invalid', 'error'];
-  }
-  
-  // Default for everything else
-  return ['error'];
 };
 
 const getCategoryInfo = (type) => {
@@ -183,7 +155,17 @@ const getCategoryInfo = (type) => {
   if (t.includes('hand-off') || t.includes('subflow')) return { bg: '#7B1FA2', label: 'Subflow / Handoff' };
   if (t.includes('disconnect')) return { bg: '#F47E7E', label: 'Disconnect' };
   
-  return { bg: '#607D8B', label: t }; 
+  return { bg: '#607D8B', label: t };
+};
+
+// Define valid exits to avoid showing unnecessary handles
+const getValidExits = (type) => {
+  const t = (type || '').toLowerCase();
+  if (t.includes('menu') || t.includes('collect')) return ['timeout', 'invalid', 'error'];
+  if (t.includes('queue')) return ['insufficient_data', 'error'];
+  if (t.includes('transfer')) return ['busy', 'no_answer', 'invalid', 'error'];
+  if (t.includes('disconnect')) return []; // Disconnect has no exits
+  return ['error']; // Default error handler for most nodes
 };
 
 const WxccNode = ({ data }) => {
@@ -195,6 +177,7 @@ const WxccNode = ({ data }) => {
   const isMenu = t.includes('ivr-menu');
   const isCase = t.includes('case');
   const isCondition = t.includes('condition') || t.includes('business-hours');
+  const isDisconnect = t.includes('disconnect');
   
   let menuLinks = [];
   if (isMenu && details?.menuLinks) {
@@ -214,100 +197,78 @@ const WxccNode = ({ data }) => {
     });
   }
 
-  // --- Render Logic ---
-  // We need to know which row is the "first" row to place the Input Handle there.
-  let isFirstRowRendered = false;
-
-  const RenderRow = ({ label, id, isSystem = false, isPill = false, pillText = '' }) => {
-    // Check if this is the very first row being rendered
-    const showInputHandle = !isFirstRowRendered;
-    if (showInputHandle) isFirstRowRendered = true;
-
-    return (
-      <div style={{...styles.linkRow, height: isSystem ? 20 : 28}}>
-        {/* --- INPUT HANDLE --- */}
-        {/* We place it here so it aligns perfectly vertically with the first output */}
-        {showInputHandle && (
-            <Handle 
-                type="target" 
-                position={Position.Left} 
-                style={styles.handleLeft} 
-            />
-        )}
-
-        {isPill && <div style={styles.digitPill}>{pillText}</div>}
-        
-        {/* For System links, we just show text. For main links, we use the gray box */}
-        {isSystem ? (
-            <span style={{marginRight: 12, fontSize: 11, color: '#888'}}>{label}</span>
-        ) : (
-            <div style={styles.descBox} title={label}>{label}</div>
-        )}
-
-        <Handle 
-            type="source" 
-            position={Position.Right} 
-            id={id} 
-            style={isSystem ? styles.handleError : styles.handleRight} 
-        />
-      </div>
-    );
-  };
-
   return (
     <div style={styles.nodeContainer}>
       
-      {/* Header */}
+      {/* Global Input Handle (Left)
+        Positioned relative to body to align with top exit of neighbor
+      */}
+      <div style={{position: 'absolute', top: 70, left: 0, width: '100%'}}>
+        <Handle type="target" position={Position.Left} style={styles.handleLeft} />
+      </div>
+
       <div style={styles.header}>
-        <div style={styles.iconBox(bg)}>
-            <span>●</span> 
-        </div>
+        <div style={styles.iconBox(bg)}><span>●</span></div>
         <div style={styles.titleBox}>
             <span style={styles.title} title={data.label}>{data.label}</span>
             <span style={styles.subTitle}>{label}</span>
         </div>
       </div>
 
-      {/* Body */}
       <div style={styles.body}>
 
         {/* --- MENU LINKS --- */}
-        {isMenu && (
-            <>
-            {menuLinks.length > 0 && <div style={styles.sectionTitle}>Custom Links</div>}
-            {menuLinks.map((link) => (
-                <RenderRow key={link.id} id={link.id} label={link.label} isPill={true} pillText={link.digit} />
-            ))}
-            </>
-        )}
+        {isMenu && menuLinks.map((link) => (
+            <div key={link.id} style={styles.linkRow}>
+                <div style={styles.digitPill}>{link.digit}</div>
+                <div style={styles.descBox} title={link.label}>{link.label}</div>
+                <Handle type="source" position={Position.Right} id={link.id} style={styles.handleRight} />
+            </div>
+        ))}
 
         {/* --- CASE / CONDITION LINKS --- */}
         {(isCase || isCondition) && (
             <>
-            {caseLinks.length > 0 && <div style={styles.sectionTitle}>Case</div>}
             {caseLinks.map((link) => (
-                <RenderRow key={link.id} id={link.id} label={link.label} />
+                <div key={link.id} style={styles.linkRow}>
+                    <div style={styles.descBox} title={link.label}>{link.label}</div>
+                    <Handle type="source" position={Position.Right} id={link.id} style={styles.handleRight} />
+                </div>
             ))}
-            
-            {/* Default Row */}
-            <RenderRow id="default" label="Default" />
-            <Handle type="source" position={Position.Right} id="0" style={{opacity: 0}} />
+            <div style={styles.linkRow}>
+                <div style={styles.descBox}>Default</div>
+                <Handle type="source" position={Position.Right} id="default" style={styles.handleRight} />
+                {/* Fallback for '0' */}
+                <Handle type="source" position={Position.Right} id="0" style={{opacity: 0, right: '-5px'}} />
+            </div>
             </>
         )}
 
-        {/* --- STANDARD LINEAR OUTPUT --- */}
-        {/* Used for Play, Set Var, etc. */}
-        {!isMenu && !isCase && !isCondition && (
-             <RenderRow id="default" label="Success" />
+        {/* --- STANDARD SUCCESS OUTPUT --- */}
+        {/* Only rendered if NOT a branching node and NOT a disconnect node */}
+        {!isMenu && !isCase && !isCondition && !isDisconnect && (
+             <div style={styles.linkRow}>
+                <span style={styles.successLabel}>Success</span>
+                <Handle type="source" position={Position.Right} id="default" style={styles.handleRight} />
+             </div>
         )}
 
         {/* --- ERROR HANDLING --- */}
-        {/* No Title, just the specific exits */}
-        <div style={{borderTop: '1px solid #f0f0f0', marginTop: 5, paddingTop: 5}}>
-            {validExits.map(key => (
-                 <RenderRow key={key} id={key} label={key === 'error' ? 'Undefined Error' : key} isSystem={true} />
-            ))}
-        </div>
+        {!isDisconnect && validExits.length > 0 && (
+            <div style={{borderTop: '1px solid #f0f0f0', marginTop: 5, paddingTop: 5}}>
+                {validExits.map(key => (
+                    <div key={key} style={{...styles.linkRow, height: 20}}>
+                    <span style={{marginRight: 12, fontSize: 11, color: '#999'}}>{key === 'error' ? 'Undefined Error' : key}</span>
+                    <Handle 
+                        type="source" 
+                        position={Position.Right} 
+                        id={key} 
+                        style={styles.handleError} 
+                    />
+                </div>
+                ))}
+            </div>
+        )}
 
       </div>
     </div>
