@@ -1,9 +1,9 @@
 // src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 
-// 'default' = Bezier Curve (prevents lines from merging into one trunk)
-const EDGE_TYPE = 'default'; 
-const SPACING_FACTOR = 1.5; // Spreads nodes out to give lines room
+const EDGE_TYPE = 'default'; // Bezier Curve
+const SPACING_FACTOR_X = 2.0; // Spread wider for horizontal flow readability
+const SPACING_FACTOR_Y = 1.5;
 
 export const transformWxccJson = (json) => {
   const nodes = [];
@@ -19,25 +19,22 @@ export const transformWxccJson = (json) => {
     Object.values(activities).forEach((activity, index) => {
       const widget = widgets[activity.id];
       
-      // 1. Coordinates with Spacing Factor
       let x = 0;
       let y = 0;
 
       if (widget?.point) {
-        x = widget.point.x * SPACING_FACTOR;
-        y = widget.point.y * SPACING_FACTOR;
+        x = widget.point.x * SPACING_FACTOR_X;
+        y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // Fallback grid if no widgets found
         const row = Math.floor(index / 5);
         const col = index % 5;
-        x = col * 400; 
+        x = col * 450; 
         y = row * 300;
       }
       
-      // Offset event flows vertically so they don't overlap main flow
       y = y + (isEvent ? currentYOffset : 0);
 
-      // 2. Node Type Extraction
+      // Robust type checking
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
 
       nodes.push({
@@ -55,7 +52,14 @@ export const transformWxccJson = (json) => {
 
     if (links) {
       links.forEach((link) => {
-        const sourceHandleId = link.conditionExpr || 'default';
+        // Map WxCC condition expressions to our Handle IDs
+        // 0 usually equals Default in Cases
+        let sourceHandleId = link.conditionExpr;
+        
+        // Normalize handle IDs
+        if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true') {
+             sourceHandleId = 'default';
+        }
         
         edges.push({
           id: `${prefix}${link.id}`,
@@ -63,11 +67,10 @@ export const transformWxccJson = (json) => {
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE,
-          // Removed 'label' property per request
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: 20,
-            height: 20,
+            width: 15,
+            height: 15,
             color: isEvent ? '#999' : '#555',
           },
           style: { 
@@ -80,13 +83,11 @@ export const transformWxccJson = (json) => {
     }
   };
 
-  // --- Process Main Flow ---
   if (json.process) {
     console.log("Processing Main Flow...");
     processFlowScope(json.process, '', false);
   }
 
-  // --- Process Event Flows ---
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
       nodes.push({
