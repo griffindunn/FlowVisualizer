@@ -22,7 +22,7 @@ const BusinessHoursNode = ({ data, selected }) => {
         { id: 'override', label: 'Override' },
         { id: 'default', label: 'Closed/Default' }
       ].map(branch => (
-         <div key={branch.id} style={row.container}>
+         <div key={branch.id} style={row.firstRowContainer}>
            <div style={row.box}>{branch.label}</div>
            <Handle type="source" position={Position.Right} id={branch.id} style={row.handleRight} />
          </div>
