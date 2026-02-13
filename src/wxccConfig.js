@@ -1,4 +1,3 @@
-// src/wxccConfig.js
 import { NODE_COLORS } from './styles/nodeColors'; 
 
 // --- Graph Nodes ---
@@ -46,18 +45,15 @@ import DefaultDetails from './components/details/DefaultDetails';
 export const getNodeConfig = (type) => {
   const t = (type || '').toLowerCase();
 
-  // Interaction
   if (t.includes('ivr-menu'))      return { ...NODE_COLORS.blue, label: 'Menu', nodeType: 'MenuNode', component: MenuNode, detailComponent: MenuDetails };
   if (t.includes('collect'))       return { ...NODE_COLORS.blue, label: 'Collect Digits', nodeType: 'CollectDigitsNode', component: CollectDigitsNode, detailComponent: CollectDigitsDetails };
   if (t.includes('play-message'))  return { ...NODE_COLORS.blue, label: 'Play Message', nodeType: 'PlayMessageNode', component: PlayMessageNode, detailComponent: PlayMessageDetails };
   if (t.includes('play-music'))    return { ...NODE_COLORS.blue, label: 'Play Music', nodeType: 'PlayMusicNode', component: PlayMusicNode, detailComponent: PlayMusicDetails };
   
-  // Logic
   if (t.includes('case'))          return { ...NODE_COLORS.yellow, label: 'Case', nodeType: 'CaseNode', component: CaseNode, detailComponent: ConditionDetails };
   if (t.includes('condition'))     return { ...NODE_COLORS.yellow, label: 'Condition', nodeType: 'ConditionNode', component: ConditionNode, detailComponent: ConditionDetails };
   if (t.includes('business'))      return { ...NODE_COLORS.yellow, label: 'Business Hours', nodeType: 'BusinessHoursNode', component: BusinessHoursNode, detailComponent: BusinessHoursDetails };
 
-  // Data / System
   if (t.includes('set'))           return { ...NODE_COLORS.grey, label: 'Set Variable', nodeType: 'SetVariableNode', component: SetVariableNode, detailComponent: SetVariableDetails };
   if (t.includes('parse'))         return { ...NODE_COLORS.grey, label: 'Parse Data', nodeType: 'ParseNode', component: ParseNode, detailComponent: ParseDetails };
   if (t.includes('http'))          return { ...NODE_COLORS.grey, label: 'HTTP Request', nodeType: 'HTTPRequestNode', component: HTTPRequestNode, detailComponent: HTTPRequestDetails };
@@ -65,13 +61,11 @@ export const getNodeConfig = (type) => {
   if (t.includes('fn'))            return { ...NODE_COLORS.grey, label: 'Custom Function', nodeType: 'FunctionNode', component: FunctionNode, detailComponent: FunctionDetails };
   if (t.includes('lookup'))        return { ...NODE_COLORS.grey, label: 'Queue Lookup', nodeType: 'QueueLookupNode', component: QueueLookupNode, detailComponent: QueueLookupDetails };
   
-  // Routing
   if (t.includes('queue-contact')) return { ...NODE_COLORS.orange, label: 'Queue Contact', nodeType: 'QueueContactNode', component: QueueContactNode, detailComponent: QueueContactDetails };
   if (t.includes('transfer'))      return { ...NODE_COLORS.green, label: 'Transfer', nodeType: 'TransferNode', component: TransferNode, detailComponent: TransferDetails };
   if (t.includes('hand-off'))      return { ...NODE_COLORS.green, label: 'GoTo / Handoff', nodeType: 'HandoffNode', component: HandoffNode, detailComponent: HandoffDetails };
   if (t.includes('disconnect'))    return { ...NODE_COLORS.red, label: 'Disconnect', nodeType: 'DisconnectNode', component: DisconnectNode, detailComponent: DefaultDetails };
   
-  // Advanced
   if (t.includes('subflow'))       return { ...NODE_COLORS.purple, label: 'Subflow', nodeType: 'SubflowNode', component: SubflowNode, detailComponent: SubflowDetails };
   if (t.includes('start') || t.includes('newphone')) return { ...NODE_COLORS.teal, label: 'Start', nodeType: 'StartNode', component: StartNode, detailComponent: StartDetails };
 
@@ -81,6 +75,11 @@ export const getNodeConfig = (type) => {
 export const getValidExits = (type) => {
   const t = (type || '').toLowerCase();
   
+  // Specific exclusions based on your feedback
+  if (t.includes('parse')) return []; // No error handle
+  if (t.includes('fn')) return []; // No error handle for function
+  if (t.includes('case')) return []; // Case handles errors internally or via Default
+  
   if (t.includes('menu')) return ['timeout', 'invalid', 'error'];
   if (t.includes('collect')) return ['timeout', 'interrupted', 'error'];
   if (t.includes('http') || t.includes('bre')) return ['timeout', 'error'];
@@ -89,5 +88,5 @@ export const getValidExits = (type) => {
   if (t.includes('transfer') || t.includes('hand-off')) return ['busy', 'no_answer', 'invalid', 'error'];
   if (t.includes('disconnect')) return []; 
   
-  return ['error']; 
+  return ['error']; // Default for Set Variable, Play, etc.
 };
