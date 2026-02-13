@@ -18,7 +18,7 @@ const SetVariableNode = ({ data, selected }) => {
         {vars.length > 4 && <div style={{fontSize:'10px', color:'#999'}}>+ {vars.length - 4} more</div>}
       </div>
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <span style={row.successLabel}>Success</span>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
