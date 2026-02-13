@@ -2,7 +2,7 @@
 import { MarkerType } from 'reactflow';
 
 const EDGE_TYPE = 'default'; // Bezier Curve
-const SPACING_FACTOR_X = 2.0; // Spread wider for horizontal flow readability
+const SPACING_FACTOR_X = 2.0; 
 const SPACING_FACTOR_Y = 1.5;
 
 export const transformWxccJson = (json) => {
@@ -16,9 +16,9 @@ export const transformWxccJson = (json) => {
     const { activities, links } = flowData;
     const widgets = flowData.diagram?.widgets || json.diagram?.widgets || {}; 
 
+    // 1. Process Nodes
     Object.values(activities).forEach((activity, index) => {
       const widget = widgets[activity.id];
-      
       let x = 0;
       let y = 0;
 
@@ -31,10 +31,8 @@ export const transformWxccJson = (json) => {
         x = col * 450; 
         y = row * 300;
       }
-      
       y = y + (isEvent ? currentYOffset : 0);
 
-      // Robust type checking
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
 
       nodes.push({
@@ -47,34 +45,40 @@ export const transformWxccJson = (json) => {
           details: activity.properties,    
           isEventNode: isEvent             
         },
+        // Force nodes to be lower than edges if we want edges on top
+        zIndex: 10 
       });
     });
 
+    // 2. Process Edges
     if (links) {
       links.forEach((link) => {
-        // Map WxCC condition expressions to our Handle IDs
-        // 0 usually equals Default in Cases
         let sourceHandleId = link.conditionExpr;
         
         // Normalize handle IDs
+        // If conditionExpr is empty or 'true', it's the default path
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true') {
              sourceHandleId = 'default';
         }
-        
+
+        // Check if this is an error path for styling
+        const isErrorPath = ['error', 'timeout', 'invalid', 'false', 'failure'].includes(sourceHandleId);
+
         edges.push({
           id: `${prefix}${link.id}`,
           source: `${prefix}${link.sourceActivityId}`,
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE,
+          zIndex: 20, // Higher than nodes (10) so lines appear on top
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 15,
             height: 15,
-            color: isEvent ? '#999' : '#555',
+            color: isErrorPath ? '#D32F2F' : '#555', // Red arrow for errors
           },
           style: { 
-            stroke: isEvent ? '#bbb' : '#555', 
+            stroke: isErrorPath ? '#D32F2F' : '#555', // Red line for errors
             strokeWidth: 2 
           }, 
           data: { isEventEdge: isEvent }
