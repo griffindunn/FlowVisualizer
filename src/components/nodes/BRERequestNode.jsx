@@ -14,7 +14,7 @@ const BRERequestNode = ({ data, selected }) => {
          <div style={{fontSize: '12px', fontWeight:'bold', color: '#333'}}>{context}</div>
       </div>
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <span style={row.successLabel}>Success</span>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
