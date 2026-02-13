@@ -18,7 +18,7 @@ const ConditionNode = ({ data, selected }) => {
 
       <div style={row.divider} />
 
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <div style={row.box}>True</div>
          <Handle type="source" position={Position.Right} id="true" style={row.handleRight} />
       </div>
