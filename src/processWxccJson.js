@@ -1,5 +1,9 @@
 // src/processWxccJson.js
-const EDGE_TYPE = 'smoothstep'; // 'default', 'straight', 'step', 'smoothstep'
+import { MarkerType } from 'reactflow';
+
+// 'default' = Bezier Curve (prevents lines from merging into one trunk)
+const EDGE_TYPE = 'default'; 
+const SPACING_FACTOR = 1.5; // Spreads nodes out to give lines room
 
 export const transformWxccJson = (json) => {
   const nodes = [];
@@ -15,20 +19,25 @@ export const transformWxccJson = (json) => {
     Object.values(activities).forEach((activity, index) => {
       const widget = widgets[activity.id];
       
-      // 1. Coordinates
-      let x = widget?.point?.x;
-      let y = widget?.point?.y;
+      // 1. Coordinates with Spacing Factor
+      let x = 0;
+      let y = 0;
 
-      if (!x && !y) {
+      if (widget?.point) {
+        x = widget.point.x * SPACING_FACTOR;
+        y = widget.point.y * SPACING_FACTOR;
+      } else {
+        // Fallback grid if no widgets found
         const row = Math.floor(index / 5);
         const col = index % 5;
-        x = col * 350; 
-        y = row * 200;
+        x = col * 400; 
+        y = row * 300;
       }
+      
+      // Offset event flows vertically so they don't overlap main flow
       y = y + (isEvent ? currentYOffset : 0);
 
-      // 2. Node Type Extraction (CRITICAL FIX)
-      // We look in activity.properties first, then fallback to activity root
+      // 2. Node Type Extraction
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
 
       nodes.push({
@@ -37,7 +46,7 @@ export const transformWxccJson = (json) => {
         position: { x, y },
         data: {
           label: activity.name,
-          nodeType: rawType, // Corrected Path
+          nodeType: rawType,
           details: activity.properties,    
           isEventNode: isEvent             
         },
@@ -46,29 +55,38 @@ export const transformWxccJson = (json) => {
 
     if (links) {
       links.forEach((link) => {
-        // We use conditionExpr (e.g., "1", "timeout") as the handle ID
-        // This allows the line to start from the specific "1" port on the node
         const sourceHandleId = link.conditionExpr || 'default';
         
         edges.push({
           id: `${prefix}${link.id}`,
           source: `${prefix}${link.sourceActivityId}`,
           target: `${prefix}${link.targetActivityId}`,
-          sourceHandle: sourceHandleId, // <--- Connects to specific right-side port
-          type: EDGE_TYPE, 
-          label: link.conditionExpr, 
-          style: { stroke: isEvent ? '#999' : '#555', strokeWidth: 1.5 }, 
+          sourceHandle: sourceHandleId, 
+          type: EDGE_TYPE,
+          // Removed 'label' property per request
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: isEvent ? '#999' : '#555',
+          },
+          style: { 
+            stroke: isEvent ? '#bbb' : '#555', 
+            strokeWidth: 2 
+          }, 
           data: { isEventEdge: isEvent }
         });
       });
     }
   };
 
+  // --- Process Main Flow ---
   if (json.process) {
     console.log("Processing Main Flow...");
     processFlowScope(json.process, '', false);
   }
 
+  // --- Process Event Flows ---
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
       nodes.push({
@@ -82,7 +100,7 @@ export const transformWxccJson = (json) => {
       if (eventData.process) {
         processFlowScope(eventData.process, `${eventName}-`, true);
       }
-      currentYOffset += 1500;
+      currentYOffset += 2000;
     });
   }
 
