@@ -1,68 +1,146 @@
+// src/components/WxccNode.jsx
 import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 
-const getStyle = (type) => {
+// --- Styles ---
+const styles = {
+  nodeContainer: {
+    minWidth: '200px',
+    background: '#fff',
+    borderRadius: '8px',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+    border: '1px solid #ccc',
+    overflow: 'hidden',
+    fontFamily: 'sans-serif',
+    fontSize: '12px'
+  },
+  header: (color) => ({
+    background: color,
+    padding: '8px',
+    color: '#fff',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  }),
+  body: {
+    padding: '10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px'
+  },
+  row: {
+    display: 'flex',
+    justifyContent: 'flex-end', // Align text to right near the handle
+    alignItems: 'center',
+    position: 'relative',
+    height: '20px'
+  },
+  rowLabel: {
+    marginRight: '10px',
+    color: '#555'
+  },
+  // Handle Styles
+  handleLeft: { left: '-6px', width: '10px', height: '10px', background: '#555' },
+  handleRight: { right: '-6px', width: '10px', height: '10px', background: '#555' }
+};
+
+// --- Logic to get Color & Icon based on Type ---
+const getCategoryInfo = (type) => {
   const t = (type || '').toLowerCase();
-
-  // 1. Interaction (Blue)
-  if (t.includes('menu') || t.includes('play') || t.includes('collect')) {
-    return { bg: '#E1F5FE', border: '#0277BD', icon: '🗣️' };
-  }
-  // 2. Logic (Yellow)
-  if (t.includes('condition') || t.includes('case') || t.includes('business')) {
-    return { bg: '#FFF9C4', border: '#FBC02D', icon: '🔀' };
-  }
-  // 3. Data/System (Grey)
-  if (t.includes('set') || t.includes('http') || t.includes('parse') || t.includes('bre') || t.includes('fn') || t.includes('queue-lookup')) {
-    return { bg: '#F5F5F5', border: '#9E9E9E', icon: '⚙️' };
-  }
-  // 4. Routing - Success (Green)
-  if (t.includes('transfer') || t.includes('hand-off')) {
-    return { bg: '#E8F5E9', border: '#2E7D32', icon: '📞' };
-  }
-  // 5. Routing - Queue (Orange)
-  if (t.includes('queue-contact')) {
-    return { bg: '#FFE0B2', border: '#EF6C00', icon: '👥' };
-  }
-  // 6. Routing - End (Red)
-  if (t.includes('disconnect')) {
-    return { bg: '#FFEBEE', border: '#C62828', icon: '🛑' };
-  }
-  // 7. Subflow (Purple)
-  if (t.includes('subflow')) {
-    return { bg: '#F3E5F5', border: '#7B1FA2', icon: '📦' };
-  }
-
-  // Default fallback
-  return { bg: '#fff', border: '#000', icon: '📄' };
+  
+  if (t.includes('menu')) return { color: '#005073', icon: 'dw-menu', label: 'Menu' }; // Webex Blue
+  if (t.includes('play')) return { color: '#0277BD', icon: 'dw-volume', label: 'Play' };
+  if (t.includes('condition') || t.includes('case') || t.includes('business')) return { color: '#FFB300', icon: 'dw-branch', label: 'Decision' }; // Amber
+  if (t.includes('set') || t.includes('http') || t.includes('parse')) return { color: '#757575', icon: 'dw-settings', label: 'System' };
+  if (t.includes('queue')) return { color: '#EF6C00', icon: 'dw-queue', label: 'Queue' };
+  if (t.includes('transfer') || t.includes('hand-off')) return { color: '#2E7D32', icon: 'dw-phone', label: 'Transfer' };
+  if (t.includes('disconnect')) return { color: '#C62828', icon: 'dw-end', label: 'End' };
+  
+  return { color: '#607D8B', icon: 'dw-file', label: 'Activity' };
 };
 
 const WxccNode = ({ data }) => {
-  const style = getStyle(data.nodeType);
+  const { nodeType, details } = data;
+  const { color, label } = getCategoryInfo(nodeType);
+
+  // 1. Determine Output Handles
+  // If it's a Menu, we grab the "menuLinks" array from properties
+  // If it's a Case/Condition, we might grab branches (though WxCC JSON structure varies here)
+  let outputs = [];
+  
+  // A. Menu Outputs
+  if (details?.menuLinks) {
+    // details.menuLinks is ["1", "2"]
+    // details.menuLinks_input is ["Sales", "Support"] (The descriptions)
+    details.menuLinks.forEach((linkKey, idx) => {
+        const desc = details['menuLinks:input'] ? details['menuLinks:input'][idx] : linkKey;
+        outputs.push({ id: linkKey, label: `Option ${linkKey} (${desc})` });
+    });
+  } 
+  
+  // B. Standard Error Outputs (Common to almost all WxCC nodes)
+  const errors = ['timeout', 'error', 'invalid', 'true', 'false'];
+  // We only show these if we detect edges connecting to them later? 
+  // For now, let's just add specific ones if likely relevant.
+  
+  // C. Fallback: If no specific outputs, allow a "default" pass-through
+  const hasSpecificOutputs = outputs.length > 0;
   
   return (
-    <div style={{
-      background: style.bg,
-      border: `1px solid ${style.border}`,
-      borderRadius: '6px',
-      padding: '8px',
-      minWidth: '140px',
-      fontSize: '12px',
-      textAlign: 'center',
-      boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-      fontFamily: 'sans-serif'
-    }}>
-      <Handle type="target" position={Position.Top} style={{ background: '#555', width: 8, height: 8 }} />
-      
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '4px' }}>
-        <span style={{ fontSize: '14px' }}>{style.icon}</span>
-        <span style={{ fontWeight: 'bold' }}>{data.label}</span>
+    <div style={styles.nodeContainer}>
+      {/* --- Global Input Handle (Left) --- */}
+      <Handle type="target" position={Position.Left} style={styles.handleLeft} />
+
+      {/* --- Header --- */}
+      <div style={styles.header(color)}>
+        {/* You can add actual SVG icons here later */}
+        <span>{label}</span>
+        <span style={{fontWeight: 'normal', fontSize: '10px', opacity: 0.8}}>| {nodeType}</span>
       </div>
 
-      {/* Debug Line: This helps us see what type the node thinks it is */}
-      <div style={{ fontSize: '9px', color: '#888' }}>{data.nodeType || 'Unknown Type'}</div>
+      {/* --- Body --- */}
+      <div style={styles.body}>
+        <strong>{data.label}</strong>
+        
+        {/* Dynamic Outputs (Right Side) */}
+        {hasSpecificOutputs ? (
+           outputs.map((out) => (
+             <div key={out.id} style={styles.row}>
+               <span style={styles.rowLabel}>{out.label}</span>
+               <Handle 
+                  type="source" 
+                  position={Position.Right} 
+                  id={out.id} 
+                  style={styles.handleRight} 
+               />
+             </div>
+           ))
+        ) : (
+          /* Standard Default Output */
+          <div style={styles.row}>
+            <span style={styles.rowLabel}>Next</span>
+            <Handle type="source" position={Position.Right} id="default" style={styles.handleRight} />
+          </div>
+        )}
 
-      <Handle type="source" position={Position.Bottom} style={{ background: '#555', width: 8, height: 8 }} />
+        {/* Always Render Common "Hidden" Exits (Timeout/Error) if they exist in links */}
+        {/* For visual cleanliness, we stack them at bottom */}
+        <div style={{borderTop: '1px solid #eee', marginTop: 5, paddingTop: 5}}>
+            {['timeout', 'error', 'true', 'false'].map(key => (
+                 <div key={key} style={{...styles.row, height: 15}}>
+                 <span style={{...styles.rowLabel, fontSize: 9}}>{key}</span>
+                 <Handle 
+                    type="source" 
+                    position={Position.Right} 
+                    id={key} 
+                    style={{...styles.handleRight, background: '#ccc'}} // Lighter color for system exits
+                 />
+               </div>
+            ))}
+        </div>
+
+      </div>
     </div>
   );
 };
