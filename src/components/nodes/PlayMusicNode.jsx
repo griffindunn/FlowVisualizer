@@ -11,7 +11,7 @@ const PlayMusicNode = ({ data, selected }) => {
       <div style={{padding: '0 10px 8px 10px'}}>
          <div style={{fontSize: '11px', color: '#555', fontStyle:'italic'}}>🎵 {file}</div>
       </div>
-      <div style={row.container}>
+      <div style={row.firstRowContainer}>
          <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
       </div>
       <div style={row.divider} />
