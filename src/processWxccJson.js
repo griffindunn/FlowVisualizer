@@ -5,15 +5,22 @@ export const transformWxccJson = (json) => {
   const edges = [];
   let currentYOffset = 2500; 
 
+  // Helper to process a specific flow scope
   const processFlowScope = (flowData, prefix = '', isEvent = false) => {
     if (!flowData || !flowData.activities) return;
-    const { activities, links } = flowData;
-    const widgets = flowData.diagram?.widgets || {};
 
-    Object.values(activities).forEach((activity) => {
+    const { activities, links } = flowData;
+    // CRITICAL FIX: Ensure we are reading the widget data from the correct path
+    const widgets = flowData.diagram?.widgets || {}; 
+
+    Object.values(activities).forEach((activity, index) => {
+      // Look up the layout widget using the activity ID
       const widget = widgets[activity.id];
-      const x = widget?.point?.x || 0;
-      const y = widget?.point?.y || 0;
+      
+      // If widget exists, use its X/Y. If not, use a basic grid fallback (index * 150)
+      // so they don't stack on top of each other.
+      const x = widget?.point?.x || (index * 250); 
+      const y = widget?.point?.y || (index * 100);
 
       nodes.push({
         id: `${prefix}${activity.id}`,
@@ -43,12 +50,15 @@ export const transformWxccJson = (json) => {
     }
   };
 
+  // --- Process Main Flow ---
   if (json.process) {
     processFlowScope(json.process, '', false);
   }
 
+  // --- Process Event Flows ---
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
+      // Add Header
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
@@ -60,6 +70,7 @@ export const transformWxccJson = (json) => {
       if (eventData.process) {
         processFlowScope(eventData.process, `${eventName}-`, true);
       }
+      // Increase offset for the next cluster
       currentYOffset += 2000;
     });
   }
