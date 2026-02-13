@@ -27,8 +27,7 @@ export const transformWxccJson = (json) => {
       } else {
         const row = Math.floor(index / 5);
         const col = index % 5;
-        x = col * 450; 
-        y = row * 300;
+        x = col * 450; y = row * 300;
       }
       y = y + (isEvent ? currentYOffset : 0);
 
@@ -55,17 +54,22 @@ export const transformWxccJson = (json) => {
         let sourceHandleId = link.conditionExpr;
         
         // --- EDGE COLOR LOGIC ---
-        // 1. Normalize Success/Default paths to 'default'
+        // 1. Normalize
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out' || sourceHandleId === 'success') {
              sourceHandleId = 'default';
         }
 
-        // 2. Strict Error Checking: Only paint RED if it matches these exact error keywords
-        const isErrorPath = [
+        // 2. Strict Error Checking
+        let isErrorPath = [
           'error', 'timeout', 'invalid', 'false', 
           'failure', 'insufficient_data', 'insufficientdata',
-          'busy', 'no_answer'
+          'busy', 'no_answer', 'interrupted'
         ].includes(sourceHandleId);
+
+        // 3. OVERRIDE: If handle is explicitly 'default', it is NEVER red.
+        if (sourceHandleId === 'default') {
+            isErrorPath = false;
+        }
 
         edges.push({
           id: `${prefix}${link.id}`,
@@ -90,10 +94,7 @@ export const transformWxccJson = (json) => {
     }
   };
 
-  if (json.process) {
-    processFlowScope(json.process, '', false);
-  }
-
+  if (json.process) processFlowScope(json.process, '', false);
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
       nodes.push({
@@ -103,9 +104,7 @@ export const transformWxccJson = (json) => {
         data: { label: `Event: ${eventName}` },
         draggable: false,
       });
-      if (eventData.process) {
-        processFlowScope(eventData.process, `${eventName}-`, true);
-      }
+      if (eventData.process) processFlowScope(eventData.process, `${eventName}-`, true);
       currentYOffset += 2000;
     });
   }
