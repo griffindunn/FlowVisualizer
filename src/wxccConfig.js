@@ -34,7 +34,12 @@ import BusinessHoursDetails from './components/details/BusinessHoursDetails';
 import QueueContactDetails from './components/details/QueueContactDetails';
 import QueueLookupDetails from './components/details/QueueLookupDetails';
 import TransferDetails from './components/details/TransferDetails';
+import HandoffDetails from './components/details/HandoffDetails'; // New
 import SubflowDetails from './components/details/SubflowDetails';
+import HTTPRequestDetails from './components/details/HTTPRequestDetails'; // New
+import BRERequestDetails from './components/details/BRERequestDetails'; // New
+import ParseDetails from './components/details/ParseDetails'; // New
+import FunctionDetails from './components/details/FunctionDetails'; // New
 import StartDetails from './components/details/StartDetails';
 import DefaultDetails from './components/details/DefaultDetails';
 
@@ -52,18 +57,18 @@ export const getNodeConfig = (type) => {
   if (t.includes('condition'))     return { ...NODE_COLORS.yellow, label: 'Condition', component: ConditionNode, detailComponent: ConditionDetails };
   if (t.includes('business'))      return { ...NODE_COLORS.yellow, label: 'Business Hours', component: BusinessHoursNode, detailComponent: BusinessHoursDetails };
 
-  // Data
+  // Data / System
   if (t.includes('set'))           return { ...NODE_COLORS.grey, label: 'Set Variable', component: SetVariableNode, detailComponent: SetVariableDetails };
-  if (t.includes('parse'))         return { ...NODE_COLORS.grey, label: 'Parse Data', component: ParseNode, detailComponent: DefaultDetails };
-  if (t.includes('http'))          return { ...NODE_COLORS.grey, label: 'HTTP Request', component: HTTPRequestNode, detailComponent: DefaultDetails };
-  if (t.includes('bre'))           return { ...NODE_COLORS.grey, label: 'BRE Request', component: BRERequestNode, detailComponent: DefaultDetails };
-  if (t.includes('fn'))            return { ...NODE_COLORS.grey, label: 'Custom Function', component: FunctionNode, detailComponent: DefaultDetails };
+  if (t.includes('parse'))         return { ...NODE_COLORS.grey, label: 'Parse Data', component: ParseNode, detailComponent: ParseDetails };
+  if (t.includes('http'))          return { ...NODE_COLORS.grey, label: 'HTTP Request', component: HTTPRequestNode, detailComponent: HTTPRequestDetails };
+  if (t.includes('bre'))           return { ...NODE_COLORS.grey, label: 'BRE Request', component: BRERequestNode, detailComponent: BRERequestDetails };
+  if (t.includes('fn'))            return { ...NODE_COLORS.grey, label: 'Custom Function', component: FunctionNode, detailComponent: FunctionDetails };
   if (t.includes('lookup'))        return { ...NODE_COLORS.grey, label: 'Queue Lookup', component: QueueLookupNode, detailComponent: QueueLookupDetails };
   
   // Routing
   if (t.includes('queue-contact')) return { ...NODE_COLORS.orange, label: 'Queue Contact', component: QueueContactNode, detailComponent: QueueContactDetails };
   if (t.includes('transfer'))      return { ...NODE_COLORS.green, label: 'Transfer', component: TransferNode, detailComponent: TransferDetails };
-  if (t.includes('hand-off'))      return { ...NODE_COLORS.green, label: 'GoTo / Handoff', component: HandoffNode, detailComponent: TransferDetails };
+  if (t.includes('hand-off'))      return { ...NODE_COLORS.green, label: 'GoTo / Handoff', component: HandoffNode, detailComponent: HandoffDetails };
   if (t.includes('disconnect'))    return { ...NODE_COLORS.red, label: 'Disconnect', component: DisconnectNode, detailComponent: DefaultDetails };
   
   // Advanced
