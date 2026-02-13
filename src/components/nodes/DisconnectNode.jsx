@@ -1,11 +1,19 @@
 import React, { memo } from 'react';
 import BaseNodeShell from './BaseNodeShell';
-// Disconnect has NO exits.
-const DisconnectNode = ({ data, selected }) => (
-  <BaseNodeShell data={data} selected={selected}>
-    <div style={{padding: '10px', color: '#999', fontSize: '12px', textAlign: 'center'}}>
-      End of Flow
-    </div>
-  </BaseNodeShell>
-);
+
+const DisconnectNode = ({ data, selected }) => {
+  return (
+    <BaseNodeShell data={data} selected={selected}>
+      <div style={{padding: '12px 10px', textAlign: 'center'}}>
+         <div style={{
+             display: 'inline-block', padding: '4px 12px', background: '#FFEBEE', 
+             color: '#D32F2F', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold',
+             border: '1px solid #FFCDD2'
+         }}>
+            ⛔ End of Flow
+         </div>
+      </div>
+    </BaseNodeShell>
+  );
+};
 export default memo(DisconnectNode);
