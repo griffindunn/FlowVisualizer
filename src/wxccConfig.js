@@ -1,7 +1,6 @@
 // src/wxccConfig.js
 import { NODE_COLORS } from './styles/nodeColors'; 
 
-// --- Graph Nodes ---
 import StartNode from './components/nodes/StartNode';
 import MenuNode from './components/nodes/MenuNode';
 import CollectDigitsNode from './components/nodes/CollectDigitsNode';
@@ -23,7 +22,7 @@ import SubflowNode from './components/nodes/SubflowNode';
 import DisconnectNode from './components/nodes/DisconnectNode';
 import DefaultNode from './components/nodes/DefaultNode';
 
-// --- Detail Panels ---
+// Detail imports remain the same...
 import MenuDetails from './components/details/MenuDetails';
 import CollectDigitsDetails from './components/details/CollectDigitsDetails';
 import PlayMessageDetails from './components/details/PlayMessageDetails';
@@ -57,7 +56,7 @@ export const getNodeConfig = (type) => {
   if (t.includes('condition'))     return { ...NODE_COLORS.yellow, label: 'Condition', nodeType: 'ConditionNode', component: ConditionNode, detailComponent: ConditionDetails };
   if (t.includes('business'))      return { ...NODE_COLORS.yellow, label: 'Business Hours', nodeType: 'BusinessHoursNode', component: BusinessHoursNode, detailComponent: BusinessHoursDetails };
 
-  // Data
+  // Data / System
   if (t.includes('set'))           return { ...NODE_COLORS.grey, label: 'Set Variable', nodeType: 'SetVariableNode', component: SetVariableNode, detailComponent: SetVariableDetails };
   if (t.includes('parse'))         return { ...NODE_COLORS.grey, label: 'Parse Data', nodeType: 'ParseNode', component: ParseNode, detailComponent: ParseDetails };
   if (t.includes('http'))          return { ...NODE_COLORS.grey, label: 'HTTP Request', nodeType: 'HTTPRequestNode', component: HTTPRequestNode, detailComponent: HTTPRequestDetails };
@@ -81,19 +80,17 @@ export const getNodeConfig = (type) => {
 export const getValidExits = (type) => {
   const t = (type || '').toLowerCase();
   
-  if (t.includes('parse')) return []; // Parse has NO error handle in your JSON
+  if (t.includes('parse')) return []; // Parse has NO error handle
+  if (t.includes('fn')) return ['error']; // Function HAS error handle (FIXED)
   
-  // Corrected based on your feedback:
-  if (t.includes('fn')) return ['error']; // Function HAS error handle
-  if (t.includes('collect')) return ['timeout', 'invalid', 'error']; // Will map to specific labels in node
-  
-  if (t.includes('case')) return ['error']; 
+  if (t.includes('case')) return ['error'];
   if (t.includes('menu')) return ['timeout', 'invalid', 'error'];
+  if (t.includes('collect')) return ['timeout', 'interrupted', 'error'];
   if (t.includes('http') || t.includes('bre')) return ['timeout', 'error'];
   if (t.includes('lookup')) return ['insufficient_data', 'failure', 'error'];
   if (t.includes('queue-contact')) return ['failure', 'error'];
   if (t.includes('transfer') || t.includes('hand-off')) return ['busy', 'no_answer', 'invalid', 'error'];
   if (t.includes('disconnect')) return []; 
   
-  return ['error']; 
+  return ['error'];
 };
