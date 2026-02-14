@@ -1,163 +1,158 @@
+// src/utils/autoLayout.js
+
 export const getLayoutedElements = (nodes, edges) => {
   // --- CONFIGURATION ---
   const NODE_WIDTH = 300; 
   const NODE_HEIGHT = 160; 
-  const X_SPACING = 600;   // WIDER horizontal gap prevents line crossovers
-  const Y_SPACING = 120;   // TALLER vertical gap gives branches breathing room
+  const X_SPACING = 500;   // Wide horizontal gap
+  const Y_SPACING = 100;   // Vertical gap
 
+  // 1. Build Graph
   const graph = {};
   nodes.forEach(n => {
     graph[n.id] = { 
       ...n, 
-      treeChildren: [],
+      children: [], 
       measuredHeight: 0, 
       x: 0, 
-      y: 0 
+      y: 0,
+      visited: false
     };
   });
 
-  const getEdgeLabel = (source, target) => {
-    const edge = edges.find(e => e.source === source && e.target === target);
-    return edge?.sourceHandle || 'default';
-  };
-
-  // Prioritize "Success/Default" edges to form the backbone (straight line)
-  const sortedEdges = [...edges].sort((a, b) => {
-    const isGoodA = ['success', 'default', 'true'].some(t => (a.sourceHandle||'').includes(t));
-    const isGoodB = ['success', 'default', 'true'].some(t => (b.sourceHandle||'').includes(t));
-    return isGoodB - isGoodA; 
+  edges.forEach(edge => {
+    if (graph[edge.source] && graph[edge.target]) {
+      graph[edge.source].children.push(edge.target);
+    }
   });
 
-  const visited = new Set();
-  const nodeHasParent = new Set();
-  
-  const connectTree = (parentId, childId) => {
-    if (graph[parentId] && graph[childId] && !nodeHasParent.has(childId)) {
-      graph[parentId].treeChildren.push(childId);
-      nodeHasParent.add(childId);
-    }
+  // 2. Helper: Layout a Single Tree Root
+  // Returns bounding box { width, height } of the tree
+  const layoutTree = (rootId, startX, startY, visitedSet) => {
+    // Measure Phase (Recursive)
+    const measure = (nodeId) => {
+      if(visitedSet.has(nodeId)) return 0;
+      visitedSet.add(nodeId);
+      
+      const node = graph[nodeId];
+      if(!node) return 0;
+
+      if(node.children.length === 0) {
+        node.measuredHeight = NODE_HEIGHT + Y_SPACING;
+        return node.measuredHeight;
+      }
+
+      let totalH = 0;
+      node.children.forEach(child => totalH += measure(child));
+      node.measuredHeight = Math.max(NODE_HEIGHT + Y_SPACING, totalH);
+      return node.measuredHeight;
+    };
+
+    // Place Phase (Recursive)
+    const place = (nodeId, x, y) => {
+      const node = graph[nodeId];
+      if(!node) return;
+
+      node.x = x;
+      
+      if(node.children.length === 0) {
+        node.y = y;
+        return;
+      }
+
+      let currentY = y;
+      node.children.forEach(childId => {
+        place(childId, x + X_SPACING, currentY);
+        currentY += graph[childId].measuredHeight;
+      });
+
+      // Center Parent
+      const first = graph[node.children[0]];
+      const last = graph[node.children[node.children.length-1]];
+      if(first && last) {
+        node.y = (first.y + last.y) / 2;
+      } else {
+        node.y = y;
+      }
+    };
+
+    // Run
+    measure(rootId);
+    // Reset visited for placement? No, strict tree means we only visit once.
+    // However, for measurement cycle breaking we used visitedSet.
+    // For placement we rely on tree structure.
+    place(rootId, startX, startY);
+
+    return graph[rootId].measuredHeight;
   };
 
-  const targets = new Set(edges.map(e => e.target));
-  const roots = nodes.filter(n => !targets.has(n.id) || n.type === 'StartNode' || n.data?.isEventNode);
 
-  const queue = [...roots.map(n => n.id)];
-  const reachable = new Set(queue);
-
-  while(queue.length > 0) {
-    const parentId = queue.shift();
-    const myEdges = sortedEdges.filter(e => e.source === parentId);
-    
-    myEdges.forEach(edge => {
-      const childId = edge.target;
-      if (!reachable.has(childId)) {
-        connectTree(parentId, childId);
-        reachable.add(childId);
-        queue.push(childId);
-      } else if (!nodeHasParent.has(childId)) {
-        connectTree(parentId, childId);
-      }
-    });
+  // 3. Execution
+  const mainRoots = nodes.filter(n => !n.data?.isEventNode && n.type === 'StartNode');
+  // If no start node, find orphans (fallback)
+  if(mainRoots.length === 0) {
+    const targets = new Set(edges.map(e => e.target));
+    nodes.filter(n => !n.data?.isEventNode && !targets.has(n.id)).forEach(n => mainRoots.push(n));
   }
 
-  // Sorting Children for visual clarity (Success Top, Error Bottom)
-  Object.values(graph).forEach(node => {
-    if (node.treeChildren.length > 1) {
-      node.treeChildren.sort((aId, bId) => {
-        const typeA = getEdgeLabel(node.id, aId);
-        const typeB = getEdgeLabel(node.id, bId);
-        
-        const isSuccessA = ['success', 'default', 'true'].some(t => typeA.includes(t));
-        const isSuccessB = ['success', 'default', 'true'].some(t => typeB.includes(t));
-        
-        if (isSuccessA && !isSuccessB) return -1;
-        if (!isSuccessA && isSuccessB) return 1;
-        return 0;
-      });
-    }
-  });
+  const eventHeaders = nodes.filter(n => n.type === 'groupHeader');
+  
+  const placedNodes = new Set();
 
-  const measureNode = (nodeId) => {
-    const node = graph[nodeId];
-    if (!node) return 0;
-    
-    if (node.treeChildren.length === 0) {
-      node.measuredHeight = NODE_HEIGHT + Y_SPACING;
-      return node.measuredHeight;
-    }
-
-    let totalHeight = 0;
-    node.treeChildren.forEach(childId => {
-      totalHeight += measureNode(childId);
-    });
-
-    node.measuredHeight = Math.max(NODE_HEIGHT + Y_SPACING, totalHeight);
-    return node.measuredHeight;
-  };
-
-  const placeNode = (nodeId, x, y) => {
-    const node = graph[nodeId];
-    if (!node) return;
-
-    node.x = x;
-    
-    if (node.treeChildren.length > 0) {
-      let currentChildY = y;
-      
-      node.treeChildren.forEach(childId => {
-        placeNode(childId, x + X_SPACING, currentChildY);
-        currentChildY += graph[childId].measuredHeight;
-      });
-
-      const firstChild = graph[node.treeChildren[0]];
-      const lastChild = graph[node.treeChildren[node.treeChildren.length - 1]];
-      
-      node.y = (firstChild.y + lastChild.y) / 2;
-    } else {
-      node.y = y;
-    }
-  };
-
-  // Execution
-  const sortedRoots = roots.sort((a, b) => {
-    if (a.type === 'StartNode') return -1;
-    if (a.data?.isEventNode && !b.data?.isEventNode) return 1;
-    return 0;
-  });
-
-  const mainRoots = sortedRoots.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
-  const eventRoots = sortedRoots.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
-
-  let globalCursorY = 0;
-
+  // A. Layout Main Flow
+  let mainCursorY = 0;
   mainRoots.forEach(root => {
-    if(graph[root.id]) {
-      measureNode(root.id);
-      placeNode(root.id, 0, globalCursorY);
-      globalCursorY += graph[root.id].measuredHeight + 400; 
-    }
+    const height = layoutTree(root.id, 0, mainCursorY, placedNodes);
+    mainCursorY += height + 200; // Gap between main trees
   });
 
-  globalCursorY += 400;
+  // B. Layout Event Flows
+  // Start well below the main flow
+  let eventCursorY = mainCursorY + 400;
 
-  eventRoots.forEach(root => {
-    if (!graph[root.id]) return;
+  eventHeaders.forEach(header => {
+    // 1. Place Header
+    const hNode = graph[header.id];
+    if(hNode) {
+      hNode.x = 0;
+      hNode.y = eventCursorY;
+      placedNodes.add(header.id);
+    }
+    eventCursorY += 150; // Space after header
 
-    if (root.type === 'groupHeader') {
-      graph[root.id].x = 0;
-      graph[root.id].y = globalCursorY;
-      globalCursorY += 200;
+    // 2. Find Roots belonging to this Event
+    const eventName = header.data.label.replace('Event: ', '');
+    // Heuristic: Event nodes usually share a prefix or we find the StartNode for this event
+    // In your processWxccJson, you prefixed IDs with `${eventName}-`.
+    const eventStartNode = nodes.find(n => 
+      n.id.startsWith(eventName + '-') && n.type !== 'groupHeader' && 
+      // It's a root if nothing points to it within this event scope
+      !edges.some(e => e.target === n.id)
+    );
+
+    if(eventStartNode) {
+       const height = layoutTree(eventStartNode.id, 0, eventCursorY, placedNodes);
+       eventCursorY += height + 200;
     } else {
-      measureNode(root.id);
-      placeNode(root.id, 0, globalCursorY);
-      globalCursorY += graph[root.id].measuredHeight + 300;
+       // Fallback: Just dump orphans linearly if no tree structure found
+       const orphans = nodes.filter(n => n.id.startsWith(eventName + '-') && !placedNodes.has(n.id));
+       orphans.forEach(n => {
+         const node = graph[n.id];
+         node.x = 0;
+         node.y = eventCursorY;
+         eventCursorY += NODE_HEIGHT + 50;
+         placedNodes.add(n.id);
+       });
     }
   });
 
-  const layoutedNodes = nodes.map(node => {
+
+  // 4. Map Final Positions
+  const finalNodes = nodes.map(node => {
     const gNode = graph[node.id];
-    const x = gNode.x || 0;
-    const y = gNode.y !== undefined ? gNode.y : (globalCursorY += 200);
+    // If layout touched it, use new pos. Else (rare orphan), keep original or 0.
+    const x = (gNode && placedNodes.has(node.id)) ? gNode.x : (node.position.x || 0);
+    const y = (gNode && placedNodes.has(node.id)) ? gNode.y : (node.position.y || 0);
 
     return {
       ...node,
@@ -167,5 +162,5 @@ export const getLayoutedElements = (nodes, edges) => {
     };
   });
 
-  return { nodes: layoutedNodes, edges };
+  return { nodes: finalNodes, edges };
 };
