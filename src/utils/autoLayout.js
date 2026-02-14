@@ -1,99 +1,136 @@
 // src/utils/autoLayout.js
 
 export const getLayoutedElements = (nodes, edges) => {
-  // --- SETTINGS: Tightened for PDF Density ---
-  const NODE_WIDTH = 300; 
-  const NODE_HEIGHT = 100; // Assumed average height
-  const X_SPACING = 350;   // Horizontal gap (Reduced)
-  const Y_SPACING = 110;   // Vertical gap (Reduced significantly)
+  // --- CONFIGURATION ---
+  const NODE_WIDTH = 320; 
+  const NODE_HEIGHT = 160; // Card height approx
+  const X_SPACING = 500;   // WIDER horizontal gap to prevent text overlap
+  const Y_SPACING = 40;    // TIGHTER vertical gap between neighboring cards
 
-  // 1. Helper: Identify Roots
-  const getRoots = () => {
-    const targets = new Set(edges.map(e => e.target));
-    return nodes.filter(n => 
-      !targets.has(n.id) || 
-      n.type === 'StartNode' || 
-      n.data?.isEventNode
-    );
+  // 1. Helper to find root nodes (nodes with no incoming edges in the current set)
+  const getRoots = (nodeSet) => {
+    const nodeIds = new Set(nodeSet.map(n => n.id));
+    const incomingEdges = new Set(edges.filter(e => nodeIds.has(e.target)).map(e => e.target));
+    return nodeSet.filter(n => !incomingEdges.has(n.id) || n.type === 'StartNode' || n.data?.isEventNode);
   };
 
-  // 2. Build Tree
+  // 2. Build Hierarchy Map
   const graph = {};
   nodes.forEach(node => {
-    graph[node.id] = { ...node, children: [], width: NODE_WIDTH, height: NODE_HEIGHT };
+    graph[node.id] = { ...node, children: [], width: NODE_WIDTH, height: NODE_HEIGHT, subtreeHeight: 0 };
   });
 
   edges.forEach(edge => {
+    // Only map if both nodes exist (sanity check)
     if (graph[edge.source] && graph[edge.target]) {
       graph[edge.source].children.push(edge.target);
     }
   });
 
-  // 3. Recursive Layout Walker
-  const layoutTree = (nodeId, x, startY, visited) => {
-    if (visited.has(nodeId)) return { minY: startY, maxY: startY + NODE_HEIGHT };
+  // 3. MEASURE PHASE (Post-Order Traversal)
+  // Calculate the height of every node's subtree
+  const measureNode = (nodeId, visited) => {
+    if (visited.has(nodeId)) return 0; // Prevent infinite loops
+    visited.add(nodeId);
+
+    const node = graph[nodeId];
+    if (node.children.length === 0) {
+      node.subtreeHeight = NODE_HEIGHT + Y_SPACING;
+      return node.subtreeHeight;
+    }
+
+    // Sum up height of all children
+    let totalChildrenHeight = 0;
+    node.children.forEach(childId => {
+      totalChildrenHeight += measureNode(childId, visited);
+    });
+
+    node.subtreeHeight = Math.max(NODE_HEIGHT + Y_SPACING, totalChildrenHeight);
+    return node.subtreeHeight;
+  };
+
+  // 4. LAYOUT PHASE (Pre-Order Traversal)
+  // Assign X/Y coordinates based on measurements
+  const layoutNode = (nodeId, x, y, visited) => {
+    if (visited.has(nodeId)) return;
     visited.add(nodeId);
 
     const node = graph[nodeId];
     
-    // Assign position
-    node.tempX = x;
-    node.tempY = startY; 
+    // Position Children
+    let currentChildY = y;
     
-    let currentChildY = startY;
-    let mySubtreeMaxY = startY + NODE_HEIGHT;
-
+    // If we have children, we want to center the parent relative to them
     if (node.children.length > 0) {
       node.children.forEach(childId => {
-        const childBounds = layoutTree(childId, x + X_SPACING, currentChildY, visited);
-        // Tighter Stacking: Next child starts immediately after previous child's bounds + gap
-        currentChildY = childBounds.maxY + (Y_SPACING / 2); // Smaller gap between immediate siblings
-        mySubtreeMaxY = Math.max(mySubtreeMaxY, childBounds.maxY);
+        layoutNode(childId, x + X_SPACING, currentChildY, visited);
+        currentChildY += graph[childId].subtreeHeight;
       });
 
-      // Centering Parent:
+      // Center parent Y: (First Child Y + Last Child Y) / 2
       const firstChild = graph[node.children[0]];
       const lastChild = graph[node.children[node.children.length - 1]];
-      node.tempY = (firstChild.tempY + lastChild.tempY) / 2;
+      
+      // Calculate center based on the positions we just assigned
+      if (firstChild.tempY !== undefined && lastChild.tempY !== undefined) {
+         node.tempY = (firstChild.tempY + lastChild.tempY) / 2;
+      } else {
+         node.tempY = y + (node.subtreeHeight / 2) - (NODE_HEIGHT / 2);
+      }
+    } else {
+      // Leaf node: just place it
+      node.tempY = y;
     }
-
-    return { minY: startY, maxY: mySubtreeMaxY };
+    
+    node.tempX = x;
   };
 
-  // 4. Execution
-  const allRoots = getRoots();
-  const mainRoots = allRoots.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
-  const eventRoots = allRoots.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
+  // --- EXECUTION ---
+  const allNodes = [...nodes];
+  
+  // Split Main vs Event
+  const mainFlowNodes = allNodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
+  const eventFlowNodes = allNodes.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
 
+  // A. Measure & Layout Main Flow
+  const mainRoots = getRoots(mainFlowNodes);
+  const measureVisited = new Set();
+  mainRoots.forEach(root => measureNode(root.id, measureVisited));
+
+  const layoutVisited = new Set();
   let globalCursorY = 0;
-  const processedNodes = new Set();
 
-  // Layout Main Flow
   mainRoots.forEach(root => {
-    const bounds = layoutTree(root.id, 0, globalCursorY, processedNodes);
-    globalCursorY = bounds.maxY + 200; 
+    layoutNode(root.id, 0, globalCursorY, layoutVisited);
+    globalCursorY += graph[root.id].subtreeHeight + 100; // Gap between disjoint main trees
   });
 
-  // Layout Event Flows (Below Main)
-  globalCursorY += 200; 
+  // B. Layout Event Flows (Below Main)
+  globalCursorY += 300; // Big gap separator
+
+  const eventRoots = getRoots(eventFlowNodes);
+  // Reset visited for events
+  const eventMeasureVisited = new Set();
+  const eventLayoutVisited = new Set();
+
   eventRoots.forEach(root => {
     if (root.type === 'groupHeader') {
-      // Hardcode header position
-      const finalNode = nodes.find(n => n.id === root.id);
-      if(finalNode) {
-          finalNode.position = { x: 0, y: globalCursorY };
-      }
-      globalCursorY += 100;
-      return;
+        // Just place headers linearly
+        const node = graph[root.id];
+        node.tempX = 0;
+        node.tempY = globalCursorY;
+        globalCursorY += 100; 
+    } else {
+        // Measure and layout this event tree
+        measureNode(root.id, eventMeasureVisited);
+        layoutNode(root.id, 0, globalCursorY, eventLayoutVisited);
+        globalCursorY += (graph[root.id].subtreeHeight || NODE_HEIGHT) + 100;
     }
-    const bounds = layoutTree(root.id, 0, globalCursorY, processedNodes);
-    globalCursorY = bounds.maxY + 150;
   });
 
-  // 5. Apply
-  const layoutedNodes = nodes.map(node => {
+  // 5. Apply Final Positions
+  const finalNodes = nodes.map(node => {
     const gNode = graph[node.id];
-    // If auto-layout touched it, use temp coords. Otherwise keep original (orphans).
     if (gNode && gNode.tempX !== undefined) {
       return {
         ...node,
@@ -105,5 +142,5 @@ export const getLayoutedElements = (nodes, edges) => {
     return node;
   });
 
-  return { nodes: layoutedNodes, edges };
+  return { nodes: finalNodes, edges };
 };
