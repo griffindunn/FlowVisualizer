@@ -1,3 +1,4 @@
+// src/MainFlow.jsx
 import React, { useState, useMemo, useCallback } from 'react';
 import ReactFlow, { 
   Background, 
@@ -8,7 +9,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Import global styles (Critical for handle/dot positioning fixes)
+// Import global styles for handles/dots
 import './index.css';
 
 // --- Nodes ---
@@ -74,7 +75,7 @@ const MainFlow = ({ fileContent }) => {
   // Toggles and History
   const [showEvents, setShowEvents] = useState(false);
   const [isLayouted, setIsLayouted] = useState(false);
-  const [originalNodes, setOriginalNodes] = useState([]); // Stores positions before Auto Layout
+  const [originalNodes, setOriginalNodes] = useState([]); 
 
   // 1. Initial Data Load
   useMemo(() => {
@@ -82,29 +83,28 @@ const MainFlow = ({ fileContent }) => {
         const { nodes: initialNodes, edges: initialEdges } = transformWxccJson(fileContent);
         setNodes(initialNodes);
         setEdges(initialEdges);
-        setOriginalNodes(initialNodes); // Save the fresh import as the "Original" state
+        // Save the pristine import state for resetting later
+        setOriginalNodes(initialNodes);
         setIsLayouted(false);
      }
   }, [fileContent, setNodes, setEdges]);
 
-  // 2. Auto Layout Handler (Toggle)
+  // 2. Auto Layout Toggle Handler
   const onLayout = useCallback(() => {
     if (isLayouted) {
-      // REVERT: Restore the nodes to their original positions
-      setNodes([...originalNodes]);
+      // REVERT: Restore nodes to original JSON positions
+      // We must map IDs to ensure React Flow sees them as the same objects if refs changed
+      setNodes(originalNodes.map(n => ({...n})));
       setIsLayouted(false);
     } else {
-      // APPLY: Save current state (just in case) and Apply Layout
-      // Note: We use 'nodes' here which might be filtered, but the layout engine needs full context.
-      // Ideally, we layout everything in 'nodes' but only render what's visible.
-      
+      // APPLY: Run the layout engine
+      // We pass the current nodes (which might be the original ones)
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-        nodes, // Layout ALL nodes, even hidden ones, to keep structure
+        nodes,
         edges
       );
-      
       setNodes([...layoutedNodes]);
-      setEdges([...layoutedEdges]); // Edges usually don't change pos, but good practice
+      setEdges([...layoutedEdges]);
       setIsLayouted(true);
     }
   }, [nodes, edges, isLayouted, originalNodes, setNodes, setEdges]);
