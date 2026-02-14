@@ -1,37 +1,43 @@
 /* src/index.css */
 
-/* 1. Force Handles (Dots) Inside */
+/* 1. Force EXIT Handles (Source) Inside */
 .react-flow__handle.source {
-  right: 10px !important; /* Positive value pulls it INSIDE the node */
-  border: 2px solid #fff; /* White border to make it pop */
+  right: 12px !important; /* Positive = Inside the node */
+  top: 50% !important;
   width: 10px;
   height: 10px;
-  background: #555;
-  z-index: 100; /* Ensure it sits on top of bg */
+  background: #757575;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  z-index: 100;
+  transform: translate(50%, -50%); /* Center vertical */
 }
 
-/* 2. Force Input Handles Inside */
+/* 2. Force INPUT Handles (Target) Inside */
 .react-flow__handle.target {
-  left: 10px !important; /* Positive value pulls it INSIDE */
-  border: 2px solid #fff;
+  left: 12px !important; /* Positive = Inside the node */
   width: 10px;
   height: 10px;
-  background: #555;
+  background: #757575;
+  border: 2px solid #fff;
+  z-index: 100;
 }
 
 /* 3. Text Spacing for Exits */
-/* This targets the text labels next to the exit dots */
-.react-flow__node div[style*="display: flex; align-items: center; justify-content: flex-end"] {
-  padding-right: 24px !important; /* Adds gap between text and the dot */
+/* This targets the text next to the exit dot */
+.react-flow__node div[style*="justify-content: flex-end"] {
+  padding-right: 28px !important; /* Make room for the dot inside */
 }
 
-/* 4. Ensure Node text doesn't hit the edge */
-.react-flow__node {
-  box-sizing: border-box;
+/* 4. Global Font */
+body {
+  font-family: "CiscoSans", "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  background: #f0f0f0;
 }
 
-/* 5. Optional: Make connection lines smoother */
+/* 5. Edge Smoothing */
 .react-flow__edge-path {
   stroke-width: 2px !important;
-  stroke: #777 !important;
+  stroke: #888;
 }
