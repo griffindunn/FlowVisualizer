@@ -1,19 +1,21 @@
+// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
-// CHANGE: Use the new custom edge type registered in MainFlow
-// This enables the "Up and Over" looping behavior for backward lines.
 const EDGE_TYPE = 'curvedLoop'; 
 
-const SPACING_FACTOR_X = 2.0; 
-const SPACING_FACTOR_Y = 1.5;
+// Scaling factors to spread out the Cisco coordinates slightly for React Flow
+const SPACING_FACTOR_X = 2.2; 
+const SPACING_FACTOR_Y = 2.2;
 
 export const transformWxccJson = (json) => {
   const nodes = [];
   const edges = [];
-  let currentYOffset = 2500; 
+  
+  // We track the max Y of the main flow to know where to start placing events
+  let maxMainY = 0;
 
-  const processFlowScope = (flowData, prefix = '', isEvent = false) => {
+  const processFlowScope = (flowData, prefix = '', isEvent = false, startYOffset = 0) => {
     if (!flowData || !flowData.activities) return;
 
     const { activities, links } = flowData;
@@ -24,21 +26,25 @@ export const transformWxccJson = (json) => {
       let x = 0;
       let y = 0;
 
+      // 1. Use Real Coordinates if available (Preferred)
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
+        // Fallback if JSON has no diagram data
         const row = Math.floor(index / 5);
         const col = index % 5;
         x = col * 450; 
         y = row * 300;
       }
-      y = y + (isEvent ? currentYOffset : 0);
+
+      // Apply Offset (pushes events down below main flow)
+      y = y + startYOffset;
+
+      if (!isEvent && y > maxMainY) maxMainY = y;
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
       const config = getNodeConfig(rawType);
-      
-      // Ensure we have a valid nodeType string
       const nodeType = config.nodeType || 'DefaultNode';
 
       nodes.push({
@@ -58,70 +64,53 @@ export const transformWxccJson = (json) => {
     if (links) {
       links.forEach((link) => {
         let sourceHandleId = link.conditionExpr;
-        
-        // --- EDGE COLOR LOGIC ---
-        // 1. Normalize
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out' || sourceHandleId === 'success') {
              sourceHandleId = 'default';
         }
 
-        // 2. Strict Error Checking
-        // Only paint RED if it matches these exact error keywords
-        let isErrorPath = [
-          'error', 'timeout', 'invalid', 'false', 
-          'failure', 'insufficient_data', 'insufficientdata',
-          'busy', 'no_answer', 'interrupted'
-        ].includes(sourceHandleId);
-
-        // 3. OVERRIDE: If handle is explicitly 'default', it is NEVER red.
-        if (sourceHandleId === 'default') {
-            isErrorPath = false;
-        }
+        let isErrorPath = ['error', 'timeout', 'invalid', 'false', 'failure', 'insufficient_data', 'busy', 'no_answer'].includes(sourceHandleId);
+        if (sourceHandleId === 'default') isErrorPath = false;
 
         edges.push({
           id: `${prefix}${link.id}`,
           source: `${prefix}${link.sourceActivityId}`,
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
-          type: EDGE_TYPE, // Uses 'curvedLoop'
+          type: EDGE_TYPE, 
           zIndex: 20, 
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            width: 15,
-            height: 15,
-            color: isErrorPath ? '#D32F2F' : '#555',
-          },
-          style: { 
-            stroke: isErrorPath ? '#D32F2F' : '#555', 
-            strokeWidth: 2 
-          }, 
+          markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: isErrorPath ? '#D32F2F' : '#555' },
+          style: { stroke: isErrorPath ? '#D32F2F' : '#555', strokeWidth: 2 }, 
           data: { isEventEdge: isEvent }
         });
       });
     }
   };
 
-  // Process Main Flow
+  // 1. Process Main Flow
   if (json.process) {
-    processFlowScope(json.process, '', false);
+    processFlowScope(json.process, '', false, 0);
   }
 
-  // Process Event Flows (Global Events)
+  // 2. Process Event Flows (Offset by the height of main flow + padding)
+  let eventCursorY = maxMainY + 1500; // Start events way below main flow
+
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
-      // Add a Header Node for the event group
+      // Add Header
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
-        position: { x: 0, y: currentYOffset - 150 },
+        position: { x: 0, y: eventCursorY - 200 },
         data: { label: `Event: ${eventName}` },
         draggable: false,
       });
 
       if (eventData.process) {
-        processFlowScope(eventData.process, `${eventName}-`, true);
+        // Pass the cursor as the startYOffset
+        processFlowScope(eventData.process, `${eventName}-`, true, eventCursorY);
       }
-      currentYOffset += 2000;
+      // Add roughly 2000px height for next event block (simple heuristic)
+      eventCursorY += 2500; 
     });
   }
 
