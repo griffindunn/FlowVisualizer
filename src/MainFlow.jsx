@@ -67,12 +67,14 @@ const edgeTypes = {
 const MainFlow = ({ fileContent }) => {
   const [selectedNode, setSelectedNode] = useState(null);
   
-  // These states hold ALL nodes (both visible and hidden)
+  // React Flow State
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  // Visibility State for Event Flows
+  // Toggles and History
   const [showEvents, setShowEvents] = useState(false);
+  const [isLayouted, setIsLayouted] = useState(false);
+  const [originalNodes, setOriginalNodes] = useState([]); // Stores positions before Auto Layout
 
   // 1. Initial Data Load
   useMemo(() => {
@@ -80,27 +82,37 @@ const MainFlow = ({ fileContent }) => {
         const { nodes: initialNodes, edges: initialEdges } = transformWxccJson(fileContent);
         setNodes(initialNodes);
         setEdges(initialEdges);
+        setOriginalNodes(initialNodes); // Save the fresh import as the "Original" state
+        setIsLayouted(false);
      }
   }, [fileContent, setNodes, setEdges]);
 
-  // 2. Auto Layout Handler
+  // 2. Auto Layout Handler (Toggle)
   const onLayout = useCallback(() => {
-    // We pass the full set of nodes to the layout engine so it can calculate
-    // the proper stacking (Main on top, Events below).
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      nodes,
-      edges
-    );
-    // Update state with new positions
-    setNodes([...layoutedNodes]);
-    setEdges([...layoutedEdges]);
-  }, [nodes, edges, setNodes, setEdges]);
+    if (isLayouted) {
+      // REVERT: Restore the nodes to their original positions
+      setNodes([...originalNodes]);
+      setIsLayouted(false);
+    } else {
+      // APPLY: Save current state (just in case) and Apply Layout
+      // Note: We use 'nodes' here which might be filtered, but the layout engine needs full context.
+      // Ideally, we layout everything in 'nodes' but only render what's visible.
+      
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        nodes, // Layout ALL nodes, even hidden ones, to keep structure
+        edges
+      );
+      
+      setNodes([...layoutedNodes]);
+      setEdges([...layoutedEdges]); // Edges usually don't change pos, but good practice
+      setIsLayouted(true);
+    }
+  }, [nodes, edges, isLayouted, originalNodes, setNodes, setEdges]);
 
   const onNodeClick = useCallback((_, node) => setSelectedNode(node), []);
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
 
   // 3. Filtering Logic for Display
-  // If showEvents is false, filter out nodes/edges tagged as part of an event
   const visibleNodes = showEvents 
     ? nodes 
     : nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
@@ -156,13 +168,13 @@ const MainFlow = ({ fileContent }) => {
             <button 
               onClick={onLayout}
               style={{
-                background: 'white',
-                border: '1px solid #ccc',
+                background: isLayouted ? '#e8f5e9' : 'white',
+                border: isLayouted ? '1px solid #4caf50' : '1px solid #ccc',
                 padding: '8px 16px',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: 'bold',
-                color: '#333',
+                color: isLayouted ? '#2e7d32' : '#333',
                 boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
                 display: 'flex',
                 alignItems: 'center',
@@ -170,7 +182,7 @@ const MainFlow = ({ fileContent }) => {
                 fontSize: '13px'
               }}
             >
-              <span>✨</span> Auto Layout
+              <span>{isLayouted ? '↩️' : '✨'}</span> {isLayouted ? 'Reset Layout' : 'Auto Layout'}
             </button>
           </Panel>
 
