@@ -1,131 +1,121 @@
 // src/utils/autoLayout.js
 
-/**
- * A pure JS auto-layout algorithm that arranges nodes in a tree structure (Left-to-Right).
- * It separates the "Main Flow" from "Event Flows" to ensure the Events always appear below.
- */
 export const getLayoutedElements = (nodes, edges) => {
   const NODE_WIDTH = 300;
-  const NODE_HEIGHT = 150;
-  const X_SPACING = 450; // Horizontal space between columns
-  const Y_SPACING = 200; // Vertical space between rows
+  const NODE_HEIGHT = 100;
+  const X_SPACING = 400; // Horizontal gap between columns
+  const Y_SPACING = 120; // Vertical gap between siblings
 
-  // Helper: Layout a specific subset of nodes/edges
-  const layoutSubset = (subsetNodes, subsetEdges, startX = 0, startY = 0) => {
-    if (subsetNodes.length === 0) return { nodes: [], height: 0 };
-
-    // 1. Build Graph Relationship
-    const graph = {};
-    subsetNodes.forEach(node => {
-      graph[node.id] = { 
-        id: node.id, 
-        children: [], 
-        parents: [], 
-        level: -1,
-        x: 0, 
-        y: 0 
-      };
-    });
-
-    subsetEdges.forEach(edge => {
-      if (graph[edge.source] && graph[edge.target]) {
-        graph[edge.source].children.push(edge.target);
-        graph[edge.target].parents.push(edge.source);
-      }
-    });
-
-    // 2. Assign Levels (BFS)
-    // Find roots (nodes with no parents within this subset)
-    let roots = Object.values(graph).filter(n => n.parents.length === 0);
-    
-    // Fallback for circular/disconnected graphs: just pick the first one
-    if (roots.length === 0 && Object.values(graph).length > 0) {
-      roots = [Object.values(graph)[0]];
-    }
-
-    const queue = [...roots];
-    queue.forEach(n => n.level = 0);
-    const visited = new Set(roots.map(n => n.id));
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-
-      current.children.forEach(childId => {
-        const child = graph[childId];
-        // Ensure child is always to the right of parent
-        if (child.level < current.level + 1) {
-          child.level = current.level + 1;
-          if (!visited.has(child.id)) {
-            visited.add(child.id);
-            queue.push(child);
-          }
-        }
-      });
-    }
-
-    // 3. Group by Level for Positioning
-    const levels = [];
-    Object.values(graph).forEach(node => {
-      const lvl = node.level === -1 ? 0 : node.level;
-      if (!levels[lvl]) levels[lvl] = [];
-      levels[lvl].push(node);
-    });
-
-    // 4. Assign Coordinates
-    let maxRowHeight = 0;
-    
-    levels.forEach((levelNodes, colIndex) => {
-      // Center this column vertically relative to startY
-      const columnHeight = levelNodes.length * Y_SPACING;
-      const columnTop = startY - (columnHeight / 2);
-
-      levelNodes.forEach((node, rowIndex) => {
-        node.x = startX + (colIndex * X_SPACING);
-        node.y = columnTop + (rowIndex * Y_SPACING);
-      });
-      
-      // Track total height of this layout block
-      if (columnHeight > maxRowHeight) maxRowHeight = columnHeight;
-    });
-
-    // 5. Map back to React Flow format
-    const newPositions = subsetNodes.map(node => {
-      const layout = graph[node.id];
-      return {
-        ...node,
-        targetPosition: 'left',
-        sourcePosition: 'right',
-        position: { x: layout.x, y: layout.y }
-      };
-    });
-
-    return { nodes: newPositions, height: maxRowHeight, maxY: startY + (maxRowHeight/2) };
+  // 1. Helper: Identify Roots (Nodes with no incoming edges within their group)
+  // We treat the Main Start Node and every Event Node as distinct "Roots"
+  const getRoots = () => {
+    const targets = new Set(edges.map(e => e.target));
+    // A root is any node that:
+    // 1. Is a "Start" type
+    // 2. Is an "Event" header or trigger
+    // 3. Or simply has no incoming connections (orphans)
+    return nodes.filter(n => 
+      !targets.has(n.id) || 
+      n.type === 'StartNode' || 
+      n.data?.isEventNode
+    );
   };
 
-  // --- SPLIT LOGIC ---
+  // 2. Build the Tree Structure (Children/Parents)
+  const graph = {};
+  nodes.forEach(node => {
+    graph[node.id] = { ...node, children: [], width: NODE_WIDTH, height: NODE_HEIGHT };
+  });
+
+  edges.forEach(edge => {
+    if (graph[edge.source] && graph[edge.target]) {
+      graph[edge.source].children.push(edge.target);
+    }
+  });
+
+  // 3. The Recursive Layout Function (Walker)
+  // Returns the bounding box { minY, maxY } of the tree it just laid out
+  const layoutTree = (nodeId, x, startY, visited) => {
+    if (visited.has(nodeId)) return { minY: startY, maxY: startY + NODE_HEIGHT };
+    visited.add(nodeId);
+
+    const node = graph[nodeId];
+    
+    // Position current node (temporarily, will center later)
+    node.tempX = x;
+    node.tempY = startY; 
+    
+    let currentChildY = startY;
+    let mySubtreeMaxY = startY + NODE_HEIGHT;
+
+    if (node.children.length > 0) {
+      // Sort children to try and keep "Yes/True" on top, "No/False" on bottom (optional polish)
+      // Recurse for children
+      node.children.forEach(childId => {
+        const childBounds = layoutTree(childId, x + X_SPACING, currentChildY, visited);
+        // The next child starts where this child finished
+        currentChildY = childBounds.maxY + Y_SPACING; 
+        mySubtreeMaxY = Math.max(mySubtreeMaxY, childBounds.maxY);
+      });
+
+      // Centering Logic:
+      // Move this parent node to the average Y of its first and last child
+      const firstChild = graph[node.children[0]];
+      const lastChild = graph[node.children[node.children.length - 1]];
+      node.tempY = (firstChild.tempY + lastChild.tempY) / 2;
+    }
+
+    return { minY: startY, maxY: mySubtreeMaxY };
+  };
+
+  // 4. Execution: Layout "Forest" (Multiple distinct trees)
   
-  // 1. Separate Main Nodes vs Event Nodes
-  const mainNodes = nodes.filter(n => !n.data?.isEventNode);
-  const eventNodes = nodes.filter(n => n.data?.isEventNode);
+  // Separate Main Flow Roots from Event Roots
+  const allRoots = getRoots();
+  const mainRoots = allRoots.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
+  const eventRoots = allRoots.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
 
-  // 2. Layout Main Flow (Centered at 0,0)
-  const layoutMain = layoutSubset(mainNodes, edges, 0, 0);
+  // We track global Y to stack the trees
+  let globalCursorY = 0;
+  const processedNodes = new Set();
+  const finalLayout = {};
 
-  // 3. Layout Event Flows
-  // We place them strictly BELOW the Main Flow.
-  // Calculate offset: finds the lowest point of Main flow + 400px padding
-  let eventsOffsetY = 800; // Default gap
-  if (mainNodes.length > 0) {
-    // Find the max Y from the main layout result
-    const maxY = Math.max(...layoutMain.nodes.map(n => n.position.y));
-    eventsOffsetY = maxY + 600;
-  }
+  // A. Process Main Flow First
+  mainRoots.forEach(root => {
+    const bounds = layoutTree(root.id, 0, globalCursorY, processedNodes);
+    globalCursorY = bounds.maxY + 400; // Add big gap between independent main flows
+  });
 
-  const layoutEvents = layoutSubset(eventNodes, edges, 0, eventsOffsetY);
+  // B. Process Event Flows Below
+  globalCursorY += 200; // Extra spacing before Events section
+  
+  eventRoots.forEach(root => {
+    // If it's a Header, just place it
+    if (root.type === 'groupHeader') {
+      finalLayout[root.id] = { x: 0, y: globalCursorY };
+      globalCursorY += 150;
+      return;
+    }
 
-  // 4. Combine
-  return {
-    nodes: [...layoutMain.nodes, ...layoutEvents.nodes],
-    edges: edges
-  };
+    // Layout the Event Tree
+    const bounds = layoutTree(root.id, 0, globalCursorY, processedNodes);
+    globalCursorY = bounds.maxY + 300; // Spacing between different events
+  });
+
+  // 5. Apply positions to actual nodes
+  const layoutedNodes = nodes.map(node => {
+    const gNode = graph[node.id];
+    // If the node was reachable, use calculated pos. If orphan, push to bottom.
+    const x = gNode.tempX !== undefined ? gNode.tempX : 0;
+    const y = gNode.tempY !== undefined ? gNode.tempY : (globalCursorY += 150);
+    
+    return {
+      ...node,
+      targetPosition: 'left',
+      sourcePosition: 'right',
+      position: { x, y },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
 };
