@@ -1,3 +1,4 @@
+// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
@@ -10,7 +11,7 @@ export const transformWxccJson = (json) => {
   const edges = [];
   let maxMainY = 0;
 
-  // Helper to find widget coordinates across possible locations
+  // Helper to find widget coordinates
   const getWidget = (id, localWidgets, globalWidgets) => {
     return localWidgets?.[id] || globalWidgets?.[id];
   };
@@ -19,33 +20,31 @@ export const transformWxccJson = (json) => {
     if (!flowData || !flowData.activities) return;
 
     const { activities, links } = flowData;
-    
-    // Look for widgets in the local scope first, then fallback to global
     const localWidgets = flowData.diagram?.widgets || {};
     const globalWidgets = json.diagram?.widgets || {};
 
-    Object.values(activities).forEach((activity, index) => {
+    // Sort activities to keep default order somewhat logical if coords are missing
+    const activityList = Object.values(activities);
+
+    activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, localWidgets, globalWidgets);
-      
       let x = 0;
       let y = 0;
 
       if (widget?.point) {
-        // FOUND COORDINATES - Use them!
+        // FOUND COORDINATES (Best Case)
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // FALLBACK LINEAR GRID (Only if no coordinates found)
-        const row = Math.floor(index / 8); // Wider grid
-        const col = index % 8;
-        x = col * 400; 
-        y = row * 250;
+        // FALLBACK: Simple Vertical Stack (Prevents overlap/mashing)
+        // Instead of a grid, we just separate them enough to be readable
+        x = (index % 2) * 500; // Zig-zag slightly
+        y = Math.floor(index / 2) * 200;
       }
 
-      // Apply Vertical Offset (Separates Events from Main Flow visually)
+      // Apply Offset
       y = y + startYOffset;
 
-      // Track bottom of main flow so we know where to start events
       if (!isEvent && y > maxMainY) maxMainY = y;
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
@@ -96,17 +95,17 @@ export const transformWxccJson = (json) => {
     processFlowScope(json.process, '', false, 0);
   }
 
-  // 2. Process Event Flows (Start strictly below the main flow)
-  // We add a large buffer to ensure no overlap if the main flow is tall
+  // 2. Process Event Flows
+  // Start well below main flow
   let eventCursorY = maxMainY + 1500; 
 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
-      // Add Header Node
+      // Header
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
-        position: { x: 0, y: eventCursorY - 150 }, // Header sits above the flow
+        position: { x: 0, y: eventCursorY - 150 },
         data: { label: `Event: ${eventName}` },
         draggable: false,
       });
@@ -115,9 +114,10 @@ export const transformWxccJson = (json) => {
         processFlowScope(eventData.process, `${eventName}-`, true, eventCursorY);
       }
       
-      // Move the cursor down for the next Event Flow
-      // We add a heuristic block of space (2500px) per event flow to keep them separated vertically
-      eventCursorY += 2500; 
+      // Advance cursor for next event block
+      // We calculate how many nodes were in this block to guess height, or just use a safe buffer
+      const nodeCount = eventData.process?.activities ? Object.keys(eventData.process.activities).length : 5;
+      eventCursorY += (nodeCount * 150) + 500; 
     });
   }
 
