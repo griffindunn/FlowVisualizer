@@ -1,163 +1,175 @@
 // src/utils/autoLayout.js
 
 export const getLayoutedElements = (nodes, edges) => {
-  // --- TUNING KNOBS (Adjust these to fit your PDF/Screen) ---
+  // --- CONFIGURATION ---
   const NODE_WIDTH = 300; 
-  const NODE_HEIGHT = 160; // Approximate max height of a node
-  const X_SPACING = 400;   // Horizontal distance between columns
-  const Y_SPACING = 60;    // Vertical gap between neighbor nodes (space for lines)
+  const NODE_HEIGHT = 120; // Tighter height for PDF density
+  const X_SPACING = 350;   // Horizontal gap
+  const Y_SPACING = 50;    // Vertical gap between neighbors
 
-  // 1. Build the Graph
+  // 1. Initialize Graph Data
   const graph = {};
   nodes.forEach(n => {
     graph[n.id] = { 
       ...n, 
-      children: [], 
+      children: [], // Only "Tree" children (for layout)
+      allChildren: [], // All actual connections
       measuredHeight: 0, 
       x: 0, 
-      y: 0,
-      visited: false 
+      y: 0 
     };
   });
 
-  // 2. Connect Edges (Forward direction only for layout)
-  edges.forEach(edge => {
-    if (graph[edge.source] && graph[edge.target]) {
-      graph[edge.source].children.push(edge.target);
+  // 2. Identify Roots (Start Node + Event Headers)
+  // We use a set to track all targets to find true roots
+  const targets = new Set(edges.map(e => e.target));
+  const roots = nodes.filter(n => !targets.has(n.id) || n.type === 'StartNode' || n.data?.isEventNode);
+
+  // 3. Build a Strict Spanning Tree (BFS)
+  // This prevents the crash by ensuring every node is visited exactly ONCE for layout purposes.
+  // Merges and cycles become "cross-edges" which are drawn but don't affect layout spacing.
+  const visited = new Set();
+  const queue = [];
+
+  // Sort roots to put Main Flow first
+  const sortedRoots = roots.sort((a, b) => {
+    if (a.type === 'StartNode') return -1;
+    if (a.data?.isEventNode) return 1;
+    return 0;
+  });
+
+  sortedRoots.forEach(root => {
+    if (!visited.has(root.id)) {
+      queue.push(root.id);
+      visited.add(root.id);
     }
   });
 
-  // 3. Identify "Roots" (Nodes with no parents in the current scope)
-  const getRoots = (nodeList) => {
-    const nodeIds = new Set(nodeList.map(n => n.id));
-    const childrenIds = new Set();
-    edges.forEach(e => {
-      if(nodeIds.has(e.source) && nodeIds.has(e.target)) {
-        childrenIds.add(e.target);
+  // Map of all forward edges for traversal lookup
+  const forwardEdges = {};
+  edges.forEach(e => {
+    if (!forwardEdges[e.source]) forwardEdges[e.source] = [];
+    forwardEdges[e.source].push(e.target);
+  });
+
+  while (queue.length > 0) {
+    const parentId = queue.shift();
+    const childrenIds = forwardEdges[parentId] || [];
+
+    // Heuristic: Sort children to put "True/Yes" paths on top (optional polish)
+    // childrenIds.sort(); 
+
+    childrenIds.forEach(childId => {
+      // Check if child exists in our node list (edges might point to missing nodes)
+      if (graph[childId]) {
+        if (!visited.has(childId)) {
+          // First time seeing this node? It becomes a direct child in the Layout Tree.
+          visited.add(childId);
+          graph[parentId].children.push(childId);
+          queue.push(childId);
+        }
+        // Always track connections for context, even if not structural children
+        graph[parentId].allChildren.push(childId);
       }
     });
-    return nodeList.filter(n => !childrenIds.has(n.id) || n.type === 'StartNode' || n.data?.isEventNode);
-  };
+  }
 
-  // 4. MEASURE PHASE: Calculate total height of every subtree
-  const measureTree = (nodeId, visitedPath = new Set()) => {
+  // 4. MEASURE PHASE (Post-Order DFS)
+  // Calculates how tall each branch is.
+  const measureNode = (nodeId) => {
     const node = graph[nodeId];
-    if (!node || node.visited) return 0; // Skip if already handled (merge point) or cycle
-    
-    // Cycle Detection: If we see a node already in our current recursion path, stop.
-    if (visitedPath.has(nodeId)) return 0;
-    visitedPath.add(nodeId);
-
     if (node.children.length === 0) {
       node.measuredHeight = NODE_HEIGHT + Y_SPACING;
       return node.measuredHeight;
     }
 
-    // Sort children to put "True/Yes" paths on top if possible (heuristic)
-    // node.children.sort(); // Optional
-
     let totalHeight = 0;
     node.children.forEach(childId => {
-      totalHeight += measureTree(childId, new Set(visitedPath));
+      totalHeight += measureNode(childId);
     });
 
-    // The height of this node is the MAX of (Its own height OR Sum of children height)
+    // Parent height is max of (children stack) OR (node height)
     node.measuredHeight = Math.max(NODE_HEIGHT + Y_SPACING, totalHeight);
     return node.measuredHeight;
   };
 
-  // 5. PLACE PHASE: Assign X/Y coordinates
-  const placeTree = (nodeId, x, y) => {
+  // 5. LAYOUT PHASE (Pre-Order DFS)
+  // Assigns actual X, Y coordinates
+  const placeNode = (nodeId, x, y) => {
     const node = graph[nodeId];
-    if (!node || node.visited) return;
-    node.visited = true; // Mark as placed
+    node.tempX = x;
 
-    // 1. Position Children first to determine parent center
-    let currentChildY = y;
-    
-    // If leaf node, just take the slot
     if (node.children.length === 0) {
-      node.x = x;
-      node.y = y;
+      node.tempY = y;
       return;
     }
 
+    let currentChildY = y;
+    
     // Stack children vertically
     node.children.forEach(childId => {
-      const child = graph[childId];
-      // Only layout if not already placed (handles merges somewhat simply)
-      if (!child.visited) {
-        placeTree(childId, x + X_SPACING, currentChildY);
-        currentChildY += child.measuredHeight;
-      }
+      placeNode(childId, x + X_SPACING, currentChildY);
+      currentChildY += graph[childId].measuredHeight;
     });
 
-    // 2. Position Self (Parent)
-    // Find the Y-range of direct children to center the parent
+    // Center parent relative to its specific layout children
     const firstChild = graph[node.children[0]];
     const lastChild = graph[node.children[node.children.length - 1]];
-
-    let centerY = y;
-    if (firstChild && lastChild && firstChild.y !== undefined && lastChild.y !== undefined) {
-      centerY = (firstChild.y + lastChild.y) / 2;
+    
+    if (firstChild && lastChild) {
+      node.tempY = (firstChild.tempY + lastChild.tempY) / 2;
     } else {
-      // Fallback if children were already visited/placed elsewhere
-      centerY = y + (node.measuredHeight / 2) - (NODE_HEIGHT / 2);
+      node.tempY = y;
     }
-
-    node.x = x;
-    node.y = centerY;
   };
 
-  // --- EXECUTION ---
-  
-  // A. Main Flow
-  const mainNodes = nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
-  const mainRoots = getRoots(mainNodes);
-  
+  // --- EXECUTE ON DISCONNECTED TREES ---
   let globalCursorY = 0;
 
-  mainRoots.forEach(root => {
-    measureTree(root.id);
-    placeTree(root.id, 0, globalCursorY);
-    globalCursorY += graph[root.id].measuredHeight + 200; // Gap between disjoint trees
+  // Split Main vs Event roots for visual separation
+  const mainFlowRoots = sortedRoots.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
+  const eventFlowRoots = sortedRoots.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
+
+  // Layout Main Flow
+  mainFlowRoots.forEach(root => {
+    // Only layout if it was part of the BFS (it should be, since it's a root)
+    if(graph[root.id]) {
+      measureNode(root.id);
+      placeNode(root.id, 0, globalCursorY);
+      globalCursorY += graph[root.id].measuredHeight + 200; // Gap between separate main flows
+    }
   });
 
-  // B. Event Flows (Placed safely below Main Flow)
-  const eventNodes = nodes.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
-  const eventRoots = getRoots(eventNodes);
-  
-  // Ensure we start below the lowest point of the main flow
-  let maxMainY = 0;
-  mainNodes.forEach(n => {
-    const gNode = graph[n.id];
-    if (gNode && gNode.y > maxMainY) maxMainY = gNode.y;
-  });
-  
-  globalCursorY = Math.max(globalCursorY, maxMainY + NODE_HEIGHT + 400);
+  // Gap before Events
+  globalCursorY += 200;
 
-  eventRoots.forEach(root => {
+  // Layout Events
+  eventFlowRoots.forEach(root => {
+    if (!graph[root.id]) return;
+
     if (root.type === 'groupHeader') {
-      const gNode = graph[root.id];
-      gNode.x = 0;
-      gNode.y = globalCursorY;
-      gNode.visited = true;
+      graph[root.id].tempX = 0;
+      graph[root.id].tempY = globalCursorY;
       globalCursorY += 100;
     } else {
-      measureTree(root.id);
-      placeTree(root.id, 0, globalCursorY);
+      measureNode(root.id);
+      placeNode(root.id, 0, globalCursorY);
       globalCursorY += graph[root.id].measuredHeight + 100;
     }
   });
 
-  // 6. Map back to React Flow
+  // 6. Map to React Flow
   const layoutedNodes = nodes.map(node => {
     const gNode = graph[node.id];
+    // If a node wasn't visited (orphan), put it at the bottom
+    const x = gNode.tempX !== undefined ? gNode.tempX : 0;
+    const y = gNode.tempY !== undefined ? gNode.tempY : (globalCursorY += 150);
+
     return {
       ...node,
       targetPosition: 'left',
       sourcePosition: 'right',
-      position: { x: gNode.x, y: gNode.y },
+      position: { x, y },
     };
   });
 
