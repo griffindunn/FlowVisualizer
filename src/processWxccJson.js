@@ -1,4 +1,3 @@
-// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
@@ -13,50 +12,44 @@ export const transformWxccJson = (json) => {
   // Track max Y of main flow to know where to safely push events
   let maxMainY = 0;
 
-  // Helper to safely extract widgets from various places in the JSON structure
-  const getWidget = (id, localWidgets, globalWidgets) => {
-    return localWidgets?.[id] || globalWidgets?.[id];
+  // Helper to safely extract widgets
+  // We now pass the specific diagram for the current flow scope
+  const getWidget = (id, currentDiagram) => {
+    return currentDiagram?.widgets?.[id];
   };
 
-  const processFlowScope = (flowData, prefix = '', isEvent = false, startYOffset = 0) => {
+  const processFlowScope = (flowData, diagramData, prefix = '', isEvent = false, startYOffset = 0) => {
     if (!flowData || !flowData.activities) return;
 
     const { activities, links } = flowData;
-    const localWidgets = flowData.diagram?.widgets || {};
-    const globalWidgets = json.diagram?.widgets || {};
-
+    
+    // Sort activities to keep consistent order if fallback is needed
     const activityList = Object.values(activities);
 
     activityList.forEach((activity, index) => {
-      const widget = getWidget(activity.id, localWidgets, globalWidgets);
+      // Look for the widget in the specific diagram passed for this scope
+      const widget = getWidget(activity.id, diagramData);
       
       let x = 0;
       let y = 0;
 
       if (widget?.point) {
-        // CASE A: We have real coordinates from Cisco
+        // FOUND COORDINATES (Standard Case)
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // CASE B: Fallback (Missing Coordinates)
-        // Previous bug: "Mashed 5x5 grid". 
-        // Fix: Use a vertical stack with zig-zag to avoid overlap
-        if (isEvent) {
-          x = (index % 2 === 0) ? 0 : 400; // Alternate left/right slightly
-          y = index * 250;                 // Stack vertically
-        } else {
-          // Standard grid for main flow if missing
-          const col = index % 5;
-          const row = Math.floor(index / 5);
-          x = col * 450;
-          y = row * 300;
-        }
+        // FALLBACK (Missing Coordinates)
+        // If we still can't find coords, use a simple grid
+        const col = index % 8;
+        const row = Math.floor(index / 8);
+        x = col * 400; 
+        y = row * 250;
       }
 
-      // Apply the Offset (crucial for Event flows)
+      // Apply Vertical Offset (Separates Events from Main Flow visually)
       y = y + startYOffset;
 
-      // Track the bottom-most node of the main flow
+      // Track bottom of main flow so we know where to start events
       if (!isEvent && y > maxMainY) maxMainY = y;
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
@@ -103,13 +96,14 @@ export const transformWxccJson = (json) => {
   };
 
   // 1. Process Main Flow
+  // Pass json.process (Logic) AND json.diagram (Layout)
   if (json.process) {
-    processFlowScope(json.process, '', false, 0);
+    processFlowScope(json.process, json.diagram, '', false, 0);
   }
 
   // 2. Process Event Flows
-  // Start 2000px below the lowest point of the main flow to ensure clean separation
-  let eventCursorY = maxMainY + 2000; 
+  // Start well below the main flow
+  let eventCursorY = maxMainY + 1500; 
 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
@@ -123,14 +117,27 @@ export const transformWxccJson = (json) => {
       });
 
       if (eventData.process) {
-        processFlowScope(eventData.process, `${eventName}-`, true, eventCursorY);
+        // CRITICAL FIX: Pass eventData.diagram explicitly here.
+        // Previously it was trying to find .diagram inside .process or using global diagram.
+        processFlowScope(eventData.process, eventData.diagram, `${eventName}-`, true, eventCursorY);
       }
       
-      // Calculate how tall this event flow likely is to position the next one
-      const activityCount = eventData.process?.activities ? Object.keys(eventData.process.activities).length : 5;
-      const estimatedHeight = activityCount * 250; 
+      // Advance cursor for next event block
+      // Calculate approximate height of this block to push the next one down
+      let blockHeight = 500;
+      if (eventData.diagram && eventData.diagram.widgets) {
+         // Find max Y in this specific event diagram to accurately space the next one
+         const yValues = Object.values(eventData.diagram.widgets)
+             .map(w => w.point?.y || 0)
+             .filter(y => !isNaN(y));
+         
+         if (yValues.length > 0) {
+             const maxY = Math.max(...yValues);
+             blockHeight = (maxY * SPACING_FACTOR_Y) + 500;
+         }
+      }
       
-      eventCursorY += estimatedHeight + 500; // Add padding for next event
+      eventCursorY += blockHeight; 
     });
   }
 
