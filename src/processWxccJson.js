@@ -9,9 +9,11 @@ const SPACING_FACTOR_Y = 2.2;
 export const transformWxccJson = (json) => {
   const nodes = [];
   const edges = [];
+  
+  // Track max Y of main flow to know where to safely push events
   let maxMainY = 0;
 
-  // Helper to find widget coordinates
+  // Helper to safely extract widgets from various places in the JSON structure
   const getWidget = (id, localWidgets, globalWidgets) => {
     return localWidgets?.[id] || globalWidgets?.[id];
   };
@@ -23,28 +25,38 @@ export const transformWxccJson = (json) => {
     const localWidgets = flowData.diagram?.widgets || {};
     const globalWidgets = json.diagram?.widgets || {};
 
-    // Sort activities to keep default order somewhat logical if coords are missing
     const activityList = Object.values(activities);
 
     activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, localWidgets, globalWidgets);
+      
       let x = 0;
       let y = 0;
 
       if (widget?.point) {
-        // FOUND COORDINATES (Best Case)
+        // CASE A: We have real coordinates from Cisco
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // FALLBACK: Simple Vertical Stack (Prevents overlap/mashing)
-        // Instead of a grid, we just separate them enough to be readable
-        x = (index % 2) * 500; // Zig-zag slightly
-        y = Math.floor(index / 2) * 200;
+        // CASE B: Fallback (Missing Coordinates)
+        // Previous bug: "Mashed 5x5 grid". 
+        // Fix: Use a vertical stack with zig-zag to avoid overlap
+        if (isEvent) {
+          x = (index % 2 === 0) ? 0 : 400; // Alternate left/right slightly
+          y = index * 250;                 // Stack vertically
+        } else {
+          // Standard grid for main flow if missing
+          const col = index % 5;
+          const row = Math.floor(index / 5);
+          x = col * 450;
+          y = row * 300;
+        }
       }
 
-      // Apply Offset
+      // Apply the Offset (crucial for Event flows)
       y = y + startYOffset;
 
+      // Track the bottom-most node of the main flow
       if (!isEvent && y > maxMainY) maxMainY = y;
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
@@ -96,12 +108,12 @@ export const transformWxccJson = (json) => {
   }
 
   // 2. Process Event Flows
-  // Start well below main flow
-  let eventCursorY = maxMainY + 1500; 
+  // Start 2000px below the lowest point of the main flow to ensure clean separation
+  let eventCursorY = maxMainY + 2000; 
 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
-      // Header
+      // Add Header Node
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
@@ -114,10 +126,11 @@ export const transformWxccJson = (json) => {
         processFlowScope(eventData.process, `${eventName}-`, true, eventCursorY);
       }
       
-      // Advance cursor for next event block
-      // We calculate how many nodes were in this block to guess height, or just use a safe buffer
-      const nodeCount = eventData.process?.activities ? Object.keys(eventData.process.activities).length : 5;
-      eventCursorY += (nodeCount * 150) + 500; 
+      // Calculate how tall this event flow likely is to position the next one
+      const activityCount = eventData.process?.activities ? Object.keys(eventData.process.activities).length : 5;
+      const estimatedHeight = activityCount * 250; 
+      
+      eventCursorY += estimatedHeight + 500; // Add padding for next event
     });
   }
 
