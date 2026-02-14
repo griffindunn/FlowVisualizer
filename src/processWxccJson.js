@@ -3,8 +3,6 @@ import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
 const EDGE_TYPE = 'curvedLoop'; 
-
-// Scaling factors to spread out the Cisco coordinates slightly for React Flow
 const SPACING_FACTOR_X = 2.2; 
 const SPACING_FACTOR_Y = 2.2;
 
@@ -12,7 +10,7 @@ export const transformWxccJson = (json) => {
   const nodes = [];
   const edges = [];
   
-  // We track the max Y of the main flow to know where to start placing events
+  // Track max Y of main flow to push events below it
   let maxMainY = 0;
 
   const processFlowScope = (flowData, prefix = '', isEvent = false, startYOffset = 0) => {
@@ -26,19 +24,19 @@ export const transformWxccJson = (json) => {
       let x = 0;
       let y = 0;
 
-      // 1. Use Real Coordinates if available (Preferred)
       if (widget?.point) {
+        // Use exact coordinates from Cisco
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // Fallback if JSON has no diagram data
+        // Fallback grid
         const row = Math.floor(index / 5);
         const col = index % 5;
         x = col * 450; 
         y = row * 300;
       }
 
-      // Apply Offset (pushes events down below main flow)
+      // Add offset for event sections
       y = y + startYOffset;
 
       if (!isEvent && y > maxMainY) maxMainY = y;
@@ -91,8 +89,9 @@ export const transformWxccJson = (json) => {
     processFlowScope(json.process, '', false, 0);
   }
 
-  // 2. Process Event Flows (Offset by the height of main flow + padding)
-  let eventCursorY = maxMainY + 1500; // Start events way below main flow
+  // 2. Process Event Flows (Below Main Flow)
+  // Start far enough down so they don't overlap initial load
+  let eventCursorY = maxMainY + 1000; 
 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
@@ -100,17 +99,16 @@ export const transformWxccJson = (json) => {
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
-        position: { x: 0, y: eventCursorY - 200 },
+        position: { x: 0, y: eventCursorY - 150 },
         data: { label: `Event: ${eventName}` },
         draggable: false,
       });
 
       if (eventData.process) {
-        // Pass the cursor as the startYOffset
         processFlowScope(eventData.process, `${eventName}-`, true, eventCursorY);
       }
-      // Add roughly 2000px height for next event block (simple heuristic)
-      eventCursorY += 2500; 
+      // Heuristic spacing between event blocks (if no layout used)
+      eventCursorY += 2000; 
     });
   }
 
