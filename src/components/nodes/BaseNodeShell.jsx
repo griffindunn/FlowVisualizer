@@ -13,7 +13,7 @@ const styles = {
       ? '0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15)' 
       : '0 1px 3px rgba(0,0,0,0.1)',
     fontFamily: '"CiscoSans", "Helvetica Neue", Arial, sans-serif',
-    overflow: 'hidden',
+    overflow: 'visible', // CHANGED: Must be visible so the handle (dot) can stick out!
     position: 'relative',
     border: '1px solid transparent',
   }),
@@ -24,6 +24,8 @@ const styles = {
     alignItems: 'center',
     gap: '12px',
     height: '48px',
+    borderTopLeftRadius: '8px',
+    borderTopRightRadius: '8px',
     borderBottom: `1px solid ${config.border}`,
     boxSizing: 'border-box'
   }),
@@ -62,7 +64,9 @@ const styles = {
   body: { 
     padding: '0', 
     background: '#FFFFFF', 
-    minHeight: '40px' 
+    minHeight: '40px',
+    borderBottomLeftRadius: '8px',
+    borderBottomRightRadius: '8px',
   },
   
   // --- INPUT HANDLE (Left Side) ---
@@ -73,8 +77,8 @@ const styles = {
     zIndex: 50 
   },
   inputHandle: { 
-    // MOVED: positive 6px puts it nicely inside the white space
-    left: '6px', 
+    // MOVED: -6px places it exactly on the border line
+    left: '-6px', 
     width: '10px', 
     height: '10px', 
     background: '#555', 
