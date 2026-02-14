@@ -30,10 +30,7 @@ import SubflowNode from './components/nodes/SubflowNode';
 import DisconnectNode from './components/nodes/DisconnectNode';
 import DefaultNode from './components/nodes/DefaultNode';
 
-// --- Edges ---
 import CurvedLoopEdge from './components/edges/CurvedLoopEdge';
-
-// --- Utils ---
 import DetailsPanel from './components/details/DetailsPanel';
 import { transformWxccJson } from './processWxccJson';
 import { getLayoutedElements } from './utils/autoLayout'; 
@@ -63,12 +60,15 @@ const edgeTypes = {
 
 const MainFlow = ({ fileContent }) => {
   const [selectedNode, setSelectedNode] = useState(null);
+  
+  // Internal lists for ALL nodes (visible + hidden)
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  
-  // New State: Hide Event Flows by default
+
+  // Visibility Toggle
   const [showEvents, setShowEvents] = useState(false);
 
+  // Load JSON
   useMemo(() => {
      if (fileContent) {
         const { nodes: initialNodes, edges: initialEdges } = transformWxccJson(fileContent);
@@ -77,11 +77,10 @@ const MainFlow = ({ fileContent }) => {
      }
   }, [fileContent, setNodes, setEdges]);
 
-  // Handle Layout Click
+  // Layout Handler
   const onLayout = useCallback(() => {
-    // We pass ALL nodes to the layout engine. 
-    // The engine handles placing Events below Main.
-    // The View filter below handles visibility.
+    // Run layout on EVERYTHING (Main + Events)
+    // The util we wrote handles placing Events below Main
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
       nodes,
       edges
@@ -93,12 +92,13 @@ const MainFlow = ({ fileContent }) => {
   const onNodeClick = useCallback((_, node) => setSelectedNode(node), []);
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
 
-  // --- FILTERING LOGIC ---
-  // If showEvents is false, we filter out any node/edge marked as an Event
+  // --- Filtering for Display ---
+  // If showEvents is FALSE, exclude any node marked isEventNode or groupHeader
   const visibleNodes = showEvents 
     ? nodes 
     : nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
 
+  // If showEvents is FALSE, exclude edges that belong to events
   const visibleEdges = showEvents 
     ? edges 
     : edges.filter(e => !e.data?.isEventEdge);
@@ -107,7 +107,7 @@ const MainFlow = ({ fileContent }) => {
     <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
       <div style={{ flex: 1, position: 'relative' }}>
         <ReactFlow
-          nodes={visibleNodes} 
+          nodes={visibleNodes}
           edges={visibleEdges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -122,14 +122,13 @@ const MainFlow = ({ fileContent }) => {
           <Background color="#f0f0f0" gap={20} />
           <Controls />
           
-          {/* Top Right Controls */}
           <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 5, display: 'flex', gap: '10px' }}>
             
-            {/* Toggle Events Button */}
+            {/* Toggle Button */}
             <button 
               onClick={() => setShowEvents(!showEvents)}
               style={{
-                background: showEvents ? '#E1F5FE' : 'white',
+                background: showEvents ? '#E3F2FD' : 'white',
                 border: '1px solid #ccc',
                 padding: '8px 16px',
                 borderRadius: '8px',
@@ -137,13 +136,16 @@ const MainFlow = ({ fileContent }) => {
                 fontWeight: 'bold',
                 color: showEvents ? '#0277BD' : '#555',
                 boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 fontSize: '13px'
               }}
             >
-              {showEvents ? '👁️ Hide Global Events' : '👁️ Show Global Events'}
+               {showEvents ? '👁️ Hide Global Events' : '👁️ Show Global Events'}
             </button>
 
-            {/* Auto Layout Button */}
+            {/* Auto Layout */}
             <button 
               onClick={onLayout}
               style={{
@@ -157,7 +159,7 @@ const MainFlow = ({ fileContent }) => {
                 boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '8px',
                 fontSize: '13px'
               }}
             >
