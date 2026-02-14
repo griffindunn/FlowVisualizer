@@ -1,7 +1,8 @@
+// src/components/nodes/BaseNodeShell.jsx
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { getNodeConfig } from '../../wxccConfig';
-import { getIconForType } from '../icons/NodeIcons'; // Import the icons
+import { getIconForType } from '../icons/NodeIcons';
 
 const styles = {
   container: (config, selected) => ({
@@ -22,7 +23,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    height: '48px', // Fixed 48px header
+    height: '48px',
     borderBottom: `1px solid ${config.border}`,
     boxSizing: 'border-box'
   }),
@@ -64,8 +65,7 @@ const styles = {
     minHeight: '40px' 
   },
   
-  // --- THE FIX ---
-  // 48px (Header) + 10px (Margin Top of First Row) + 12px (Center of 24px Row) = 70px
+  // --- INPUT HANDLE (Left Side) ---
   inputHandleWrapper: { 
     position: 'absolute', 
     top: '70px', 
@@ -73,7 +73,8 @@ const styles = {
     zIndex: 50 
   },
   inputHandle: { 
-    left: '-5px', 
+    // MOVED: positive 6px puts it nicely inside the white space
+    left: '6px', 
     width: '10px', 
     height: '10px', 
     background: '#555', 
@@ -84,8 +85,6 @@ const styles = {
 
 const BaseNodeShell = ({ data, selected, children, showInput = true }) => {
   const config = getNodeConfig(data.nodeType);
-  
-  // Get specific icon based on node type
   const IconComponent = getIconForType(data.nodeType);
 
   return (
