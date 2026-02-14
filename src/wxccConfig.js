@@ -1,6 +1,7 @@
 // src/wxccConfig.js
 import { NODE_COLORS } from './styles/nodeColors'; 
 
+// --- Graph Nodes ---
 import StartNode from './components/nodes/StartNode';
 import MenuNode from './components/nodes/MenuNode';
 import CollectDigitsNode from './components/nodes/CollectDigitsNode';
@@ -22,7 +23,7 @@ import SubflowNode from './components/nodes/SubflowNode';
 import DisconnectNode from './components/nodes/DisconnectNode';
 import DefaultNode from './components/nodes/DefaultNode';
 
-// Detail imports remain the same...
+// --- Detail Panels ---
 import MenuDetails from './components/details/MenuDetails';
 import CollectDigitsDetails from './components/details/CollectDigitsDetails';
 import PlayMessageDetails from './components/details/PlayMessageDetails';
@@ -45,34 +46,36 @@ import DefaultDetails from './components/details/DefaultDetails';
 export const getNodeConfig = (type) => {
   const t = (type || '').toLowerCase();
 
-  // Interaction
-  if (t.includes('ivr-menu'))      return { ...NODE_COLORS.blue, label: 'Menu', nodeType: 'MenuNode', component: MenuNode, detailComponent: MenuDetails };
-  if (t.includes('collect'))       return { ...NODE_COLORS.blue, label: 'Collect Digits', nodeType: 'CollectDigitsNode', component: CollectDigitsNode, detailComponent: CollectDigitsDetails };
-  if (t.includes('play-message'))  return { ...NODE_COLORS.blue, label: 'Play Message', nodeType: 'PlayMessageNode', component: PlayMessageNode, detailComponent: PlayMessageDetails };
-  if (t.includes('play-music'))    return { ...NODE_COLORS.blue, label: 'Play Music', nodeType: 'PlayMusicNode', component: PlayMusicNode, detailComponent: PlayMusicDetails };
-  
-  // Logic
-  if (t.includes('case'))          return { ...NODE_COLORS.yellow, label: 'Case', nodeType: 'CaseNode', component: CaseNode, detailComponent: ConditionDetails };
-  if (t.includes('condition'))     return { ...NODE_COLORS.yellow, label: 'Condition', nodeType: 'ConditionNode', component: ConditionNode, detailComponent: ConditionDetails };
-  if (t.includes('business'))      return { ...NODE_COLORS.yellow, label: 'Business Hours', nodeType: 'BusinessHoursNode', component: BusinessHoursNode, detailComponent: BusinessHoursDetails };
+  // --- LOGIC (Orange #FFCE73) ---
+  // HTML Class: enum-gateway
+  if (t.includes('ivr-menu') || t.includes('menu')) return { ...NODE_COLORS.orange, label: 'Menu', nodeType: 'MenuNode', component: MenuNode, detailComponent: MenuDetails };
+  if (t.includes('case'))          return { ...NODE_COLORS.orange, label: 'Case', nodeType: 'CaseNode', component: CaseNode, detailComponent: ConditionDetails };
+  if (t.includes('condition'))     return { ...NODE_COLORS.orange, label: 'Condition', nodeType: 'ConditionNode', component: ConditionNode, detailComponent: ConditionDetails };
+  if (t.includes('business'))      return { ...NODE_COLORS.orange, label: 'Business Hours', nodeType: 'BusinessHoursNode', component: BusinessHoursNode, detailComponent: BusinessHoursDetails };
 
-  // Data / System
-  if (t.includes('set'))           return { ...NODE_COLORS.grey, label: 'Set Variable', nodeType: 'SetVariableNode', component: SetVariableNode, detailComponent: SetVariableDetails };
-  if (t.includes('parse'))         return { ...NODE_COLORS.grey, label: 'Parse Data', nodeType: 'ParseNode', component: ParseNode, detailComponent: ParseDetails };
-  if (t.includes('http'))          return { ...NODE_COLORS.grey, label: 'HTTP Request', nodeType: 'HTTPRequestNode', component: HTTPRequestNode, detailComponent: HTTPRequestDetails };
-  if (t.includes('bre'))           return { ...NODE_COLORS.grey, label: 'BRE Request', nodeType: 'BRERequestNode', component: BRERequestNode, detailComponent: BRERequestDetails };
-  if (t.includes('fn'))            return { ...NODE_COLORS.grey, label: 'Custom Function', nodeType: 'FunctionNode', component: FunctionNode, detailComponent: FunctionDetails };
-  if (t.includes('lookup'))        return { ...NODE_COLORS.grey, label: 'Queue Lookup', nodeType: 'QueueLookupNode', component: QueueLookupNode, detailComponent: QueueLookupDetails };
+  // --- ACTION / DATA (Purple #E2CAFC) ---
+  // HTML Class: action-activity
+  if (t.includes('collect'))       return { ...NODE_COLORS.purple, label: 'Collect Digits', nodeType: 'CollectDigitsNode', component: CollectDigitsNode, detailComponent: CollectDigitsDetails };
+  if (t.includes('play-message'))  return { ...NODE_COLORS.purple, label: 'Play Message', nodeType: 'PlayMessageNode', component: PlayMessageNode, detailComponent: PlayMessageDetails };
+  if (t.includes('play-music'))    return { ...NODE_COLORS.purple, label: 'Play Music', nodeType: 'PlayMusicNode', component: PlayMusicNode, detailComponent: PlayMessageDetails };
+  if (t.includes('set'))           return { ...NODE_COLORS.purple, label: 'Set Variable', nodeType: 'SetVariableNode', component: SetVariableNode, detailComponent: SetVariableDetails };
+  if (t.includes('parse'))         return { ...NODE_COLORS.purple, label: 'Parse', nodeType: 'ParseNode', component: ParseNode, detailComponent: ParseDetails };
+  if (t.includes('http'))          return { ...NODE_COLORS.purple, label: 'HTTP Request', nodeType: 'HTTPRequestNode', component: HTTPRequestNode, detailComponent: HTTPRequestDetails };
+  if (t.includes('bre'))           return { ...NODE_COLORS.purple, label: 'BRE Request', nodeType: 'BRERequestNode', component: BRERequestNode, detailComponent: BRERequestDetails };
+  if (t.includes('fn'))            return { ...NODE_COLORS.purple, label: 'Custom Function', nodeType: 'FunctionNode', component: FunctionNode, detailComponent: FunctionDetails };
+  if (t.includes('lookup'))        return { ...NODE_COLORS.purple, label: 'Get Queue Info', nodeType: 'QueueLookupNode', component: QueueLookupNode, detailComponent: QueueLookupDetails };
+  if (t.includes('queue-contact')) return { ...NODE_COLORS.purple, label: 'Queue Contact', nodeType: 'QueueContactNode', component: QueueContactNode, detailComponent: QueueContactDetails };
   
-  // Routing
-  if (t.includes('queue-contact')) return { ...NODE_COLORS.orange, label: 'Queue Contact', nodeType: 'QueueContactNode', component: QueueContactNode, detailComponent: QueueContactDetails };
-  if (t.includes('transfer'))      return { ...NODE_COLORS.green, label: 'Transfer', nodeType: 'TransferNode', component: TransferNode, detailComponent: TransferDetails };
-  if (t.includes('hand-off'))      return { ...NODE_COLORS.green, label: 'GoTo / Handoff', nodeType: 'HandoffNode', component: HandoffNode, detailComponent: HandoffDetails };
-  if (t.includes('disconnect'))    return { ...NODE_COLORS.red, label: 'Disconnect', nodeType: 'DisconnectNode', component: DisconnectNode, detailComponent: DefaultDetails };
+  // --- TERMINATING / END (Pink #FFC7D2) ---
+  if (t.includes('transfer'))      return { ...NODE_COLORS.pink, label: 'Blind Transfer', nodeType: 'TransferNode', component: TransferNode, detailComponent: TransferDetails };
+  if (t.includes('hand-off') || t.includes('goto')) return { ...NODE_COLORS.pink, label: 'GoTo', nodeType: 'HandoffNode', component: HandoffNode, detailComponent: HandoffDetails };
+  if (t.includes('disconnect'))    return { ...NODE_COLORS.pink, label: 'Disconnect Contact', nodeType: 'DisconnectNode', component: DisconnectNode, detailComponent: DefaultDetails };
   
-  // Advanced
-  if (t.includes('subflow'))       return { ...NODE_COLORS.purple, label: 'Subflow', nodeType: 'SubflowNode', component: SubflowNode, detailComponent: SubflowDetails };
-  if (t.includes('start') || t.includes('newphone')) return { ...NODE_COLORS.teal, label: 'Start', nodeType: 'StartNode', component: StartNode, detailComponent: StartDetails };
+  // --- SUBFLOW (Blue #99DDFF) ---
+  if (t.includes('subflow'))       return { ...NODE_COLORS.blue, label: 'Subflow', nodeType: 'SubflowNode', component: SubflowNode, detailComponent: SubflowDetails };
+
+  // --- START (Green) ---
+  if (t.includes('start') || t.includes('newphone')) return { ...NODE_COLORS.green, label: 'Start Flow', nodeType: 'StartNode', component: StartNode, detailComponent: StartDetails };
 
   return { ...NODE_COLORS.grey, label: 'Activity', nodeType: 'DefaultNode', component: DefaultNode, detailComponent: DefaultDetails };
 };
@@ -80,8 +83,11 @@ export const getNodeConfig = (type) => {
 export const getValidExits = (type) => {
   const t = (type || '').toLowerCase();
   
-  if (t.includes('parse')) return []; // Parse has NO error handle
-  if (t.includes('fn')) return ['error']; // Function HAS error handle (FIXED)
+  // Custom Function (fn) DOES have error handling
+  if (t.includes('fn')) return ['error'];
+  
+  // Parse typically does NOT expose error paths in flow builder
+  if (t.includes('parse')) return []; 
   
   if (t.includes('case')) return ['error'];
   if (t.includes('menu')) return ['timeout', 'invalid', 'error'];
