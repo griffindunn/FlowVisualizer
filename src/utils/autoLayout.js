@@ -1,63 +1,52 @@
 // src/utils/autoLayout.js
 
 export const getLayoutedElements = (nodes, edges) => {
-  // --- TUNING KNOBS (Increased for PDF/Visual Clarity) ---
+  // --- TUNING KNOBS ---
   const NODE_WIDTH = 300; 
-  const NODE_HEIGHT = 160; // Max height reservation per node
-  
-  // WIDER GAP: Gives room for lines to curve backward without hitting nodes
-  const X_SPACING = 600;   
-  
-  // TALLER GAP: distinct separation between "True" and "False" branches
-  const Y_SPACING = 120;   
+  const NODE_HEIGHT = 160; 
+  const X_SPACING = 600;   // Wide horizontal gap for lines
+  const Y_SPACING = 120;   // Vertical gap for separation
 
-  // 1. Build the Graph Map
+  // 1. Build the Graph
   const graph = {};
   nodes.forEach(n => {
     graph[n.id] = { 
       ...n, 
       children: [], 
-      allChildren: [], 
-      measuredHeight: 0, 
+      allChildren: [],
       x: 0, 
-      y: 0,
-      visited: false 
+      y: 0 
     };
   });
 
-  // Helper to check connection types for sorting
+  // Helper to get edge labels for sorting
   const getEdgeLabel = (source, target) => {
     const edge = edges.find(e => e.source === source && e.target === target);
     return edge?.sourceHandle || 'default';
   };
 
-  // 2. Connect Edges & Build Hierarchy
   edges.forEach(edge => {
     if (graph[edge.source] && graph[edge.target]) {
       graph[edge.source].children.push(edge.target);
     }
   });
 
-  // 3. Identify Roots (Start Node or Event Headers)
-  const targets = new Set(edges.map(e => e.target));
-  const roots = nodes.filter(n => !targets.has(n.id) || n.type === 'StartNode' || n.data?.isEventNode);
-
-  // 4. SMART SORT: Optimize Children Order to reduce crossings
+  // 2. Sort Children (Success on Top, Error on Bottom)
   Object.values(graph).forEach(node => {
     if (node.children.length > 1) {
       node.children.sort((aId, bId) => {
         const typeA = getEdgeLabel(node.id, aId);
         const typeB = getEdgeLabel(node.id, bId);
 
-        // Priority 1: "Success" or "Default" goes to TOP (keeps main flow straight)
-        const isSuccessA = typeA === 'success' || typeA === 'default' || typeA === 'true';
-        const isSuccessB = typeB === 'success' || typeB === 'default' || typeB === 'true';
+        const isSuccessA = ['success', 'default', 'true', '1', '2', '3'].some(t => typeA.includes(t));
+        const isSuccessB = ['success', 'default', 'true', '1', '2', '3'].some(t => typeB.includes(t));
+        
         if (isSuccessA && !isSuccessB) return -1;
         if (!isSuccessA && isSuccessB) return 1;
 
-        // Priority 2: "Error", "Timeout", "Invalid" go to BOTTOM (outer edges)
-        const isBadA = ['error', 'timeout', 'invalid', 'failure'].includes(typeA);
-        const isBadB = ['error', 'timeout', 'invalid', 'failure'].includes(typeB);
+        const isBadA = ['error', 'timeout', 'invalid', 'failure'].some(t => typeA.includes(t));
+        const isBadB = ['error', 'timeout', 'invalid', 'failure'].some(t => typeB.includes(t));
+        
         if (isBadA && !isBadB) return 1;
         if (!isBadA && isBadB) return -1;
 
@@ -66,75 +55,91 @@ export const getLayoutedElements = (nodes, edges) => {
     }
   });
 
-  // 5. MEASURE PHASE: Calculate total height of every subtree
-  const measureTree = (nodeId, visitedPath = new Set()) => {
-    const node = graph[nodeId];
-    if (!node || node.visited) return 0; 
-    
-    // Cycle Check
-    if (visitedPath.has(nodeId)) return 0;
-    visitedPath.add(nodeId);
+  // 3. Identify Roots
+  const targets = new Set(edges.map(e => e.target));
+  const roots = nodes.filter(n => !targets.has(n.id) || n.type === 'StartNode' || n.data?.isEventNode);
 
-    if (node.children.length === 0) {
-      node.measuredHeight = NODE_HEIGHT + Y_SPACING;
-      return node.measuredHeight;
+  // 4. MEMOIZATION SETUP
+  // calculatedHeights: Stores the total height of a node's subtree so we never calc it twice
+  const calculatedHeights = {}; 
+  // visiting: Tracks recursion stack to break infinite loops (cycles)
+  const visiting = new Set();
+
+  // MEASURE FUNCTION (Returns height)
+  const getSubtreeHeight = (nodeId) => {
+    // A. Cycle Detected? Return minimal height and stop recursing.
+    if (visiting.has(nodeId)) return NODE_HEIGHT + Y_SPACING;
+    
+    // B. Already Calculated? Return cached value. (Fixes the crash)
+    if (calculatedHeights[nodeId] !== undefined) return calculatedHeights[nodeId];
+
+    visiting.add(nodeId);
+    
+    const node = graph[nodeId];
+    
+    // Base Case: Leaf Node
+    if (!node || node.children.length === 0) {
+      visiting.delete(nodeId);
+      calculatedHeights[nodeId] = NODE_HEIGHT + Y_SPACING;
+      return calculatedHeights[nodeId];
     }
 
+    // Recursive Step: Sum height of all children
     let totalHeight = 0;
     node.children.forEach(childId => {
-      // Create a new set for the child's path to allow parallel branches to share nodes
-      // but prevent loops within a single branch
-      totalHeight += measureTree(childId, new Set(visitedPath));
+      totalHeight += getSubtreeHeight(childId);
     });
 
-    // Parent height is max of (children stack) OR (self height)
-    node.measuredHeight = Math.max(NODE_HEIGHT + Y_SPACING, totalHeight);
-    return node.measuredHeight;
+    visiting.delete(nodeId);
+    
+    // Height is either the children's total height OR the node's own height (whichever is bigger)
+    // We add Y_SPACING to ensure separation between blocks
+    calculatedHeights[nodeId] = Math.max(NODE_HEIGHT + Y_SPACING, totalHeight);
+    return calculatedHeights[nodeId];
   };
 
-  // 6. PLACE PHASE: Assign X/Y coordinates
-  const placeTree = (nodeId, x, y) => {
+  // 5. LAYOUT FUNCTION (Assigns X/Y)
+  // placedNodes: Tracks nodes we have already assigned coordinates to (handles merge points)
+  const placedNodes = new Set();
+
+  const placeNode = (nodeId, x, y) => {
+    if (placedNodes.has(nodeId)) return; // Don't move a node if it's already placed
+    placedNodes.add(nodeId);
+
     const node = graph[nodeId];
-    if (!node || node.visited) return;
-    node.visited = true;
-
-    // 1. Position Children first (Post-order)
-    let currentChildY = y;
-    
-    if (node.children.length === 0) {
-      node.x = x;
-      node.y = y;
-      return;
-    }
-
-    node.children.forEach(childId => {
-      const child = graph[childId];
-      if (!child.visited) {
-        placeTree(childId, x + X_SPACING, currentChildY);
-        // Use the child's *actual* measured bulk to step down
-        currentChildY += child.measuredHeight; 
-      }
-    });
-
-    // 2. Position Self (Centering)
-    const firstChild = graph[node.children[0]];
-    const lastChild = graph[node.children[node.children.length - 1]];
-
-    let centerY = y;
-    // Only center if we actually placed the children just now
-    if (firstChild && lastChild && firstChild.x > x) { 
-       centerY = (firstChild.y + lastChild.y) / 2;
-    } else {
-       // If children were already placed (merge point), don't jump far away.
-       centerY = y + (NODE_HEIGHT / 2);
-    }
-
     node.x = x;
-    node.y = centerY;
+
+    // 1. Place Children
+    if (node.children.length > 0) {
+      let currentChildY = y;
+      
+      // If we have multiple children, center the parent relative to the children block
+      // If the parent is TALLER than the children block (rare), center children relative to parent.
+      
+      node.children.forEach(childId => {
+        placeNode(childId, x + X_SPACING, currentChildY);
+        // Step down by the child's pre-calculated height
+        currentChildY += calculatedHeights[childId];
+      });
+
+      // Calculate Center Y for the Parent
+      const firstChild = graph[node.children[0]];
+      const lastChild = graph[node.children[node.children.length - 1]];
+      
+      if (firstChild && lastChild) {
+        // Simple centering between first and last child top positions
+        // This is safe because we just placed them.
+        node.y = (firstChild.y + lastChild.y) / 2;
+      } else {
+        node.y = y;
+      }
+    } else {
+      // Leaf Node
+      node.y = y;
+    }
   };
 
   // --- EXECUTION ---
-  const allNodes = [...nodes];
   
   // Sort roots: Main Flow first, then Events
   const sortedRoots = roots.sort((a, b) => {
@@ -149,24 +154,25 @@ export const getLayoutedElements = (nodes, edges) => {
 
   let globalCursorY = 0;
 
-  // A. Main Flow Layout
+  // A. Measure & Place Main Flow
   mainRoots.forEach(root => {
     if(graph[root.id]) {
-      measureTree(root.id);
-      placeTree(root.id, 0, globalCursorY);
-      // Add massive gap between independent trees
-      globalCursorY += graph[root.id].measuredHeight + 300; 
+      // 1. Measure First (Populates calculatedHeights)
+      getSubtreeHeight(root.id);
+      // 2. Place Second (Uses calculatedHeights)
+      placeNode(root.id, 0, globalCursorY);
+      // 3. Move cursor down
+      globalCursorY += (calculatedHeights[root.id] || NODE_HEIGHT) + 300; 
     }
   });
 
-  // B. Event Flows Layout (Below Main)
-  // Ensure we start well below the lowest point of the main flow
+  // B. Measure & Place Event Flows
+  // Ensure we start below any main flow content (including nodes pushed down by layout)
   let maxMainY = 0;
-  allNodes.forEach(n => {
-    const gNode = graph[n.id];
-    if (gNode && !n.data?.isEventNode && gNode.y > maxMainY) maxMainY = gNode.y;
+  Object.values(graph).forEach(n => {
+    if (n.y > maxMainY) maxMainY = n.y;
   });
-
+  
   globalCursorY = Math.max(globalCursorY, maxMainY + 400);
 
   eventRoots.forEach(root => {
@@ -175,21 +181,21 @@ export const getLayoutedElements = (nodes, edges) => {
     if (root.type === 'groupHeader') {
       graph[root.id].x = 0;
       graph[root.id].y = globalCursorY;
-      graph[root.id].visited = true;
+      placedNodes.add(root.id);
       globalCursorY += 150;
     } else {
-      measureTree(root.id);
-      placeTree(root.id, 0, globalCursorY);
-      globalCursorY += graph[root.id].measuredHeight + 200;
+      getSubtreeHeight(root.id);
+      placeNode(root.id, 0, globalCursorY);
+      globalCursorY += (calculatedHeights[root.id] || NODE_HEIGHT) + 200;
     }
   });
 
-  // 7. Map back to React Flow
+  // 6. Map back to React Flow
   const layoutedNodes = nodes.map(node => {
     const gNode = graph[node.id];
-    // Safety check for unvisited nodes (should be rare)
-    const x = gNode.x !== undefined ? gNode.x : 0;
-    const y = gNode.y !== undefined ? gNode.y : (globalCursorY += 200);
+    // Safety: if a node wasn't reached (orphan loop), place it at the bottom
+    const x = gNode.x || 0;
+    const y = placedNodes.has(node.id) ? gNode.y : (globalCursorY += 200);
 
     return {
       ...node,
