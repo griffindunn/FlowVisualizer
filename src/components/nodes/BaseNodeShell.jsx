@@ -5,22 +5,19 @@ import { getNodeConfig } from '../../wxccConfig';
 import { getIconForType } from '../icons/NodeIcons';
 
 const styles = {
-  container: (config, selected) => ({
+  container: (config) => ({
     width: '280px',
     background: '#fff',
     borderRadius: '8px',
-    boxShadow: selected 
-      ? '0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15)' 
-      : '0 1px 3px rgba(0,0,0,0.1)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
     fontFamily: '"CiscoSans", "Helvetica Neue", Arial, sans-serif',
-    overflow: 'visible', // Critical: allows handles to be seen if they nudge out
+    overflow: 'visible', 
     position: 'relative',
     border: '1px solid transparent',
   }),
   header: (config) => ({
     background: config.header,
-    // Padding adjusted via CSS in index.css to avoid dot overlap
-    padding: '12px 16px', 
+    padding: '12px 16px',
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
@@ -41,7 +38,7 @@ const styles = {
     borderRadius: '4px',
     flexShrink: 0
   }),
-  headerContent: {
+  headerTextCol: {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
@@ -68,16 +65,6 @@ const styles = {
     minHeight: '40px',
     borderBottomLeftRadius: '8px',
     borderBottomRightRadius: '8px',
-    position: 'relative'
-  },
-  
-  // --- INPUT HANDLE WRAPPER ---
-  // We place it absolutely to ensure it aligns with the header vertically
-  inputHandleWrapper: { 
-    position: 'absolute', 
-    top: '24px', // Vertically Center in the 48px Header
-    left: 0, 
-    zIndex: 50 
   }
 };
 
@@ -86,32 +73,28 @@ const BaseNodeShell = ({ data, selected, children, showInput = true }) => {
   const IconComponent = getIconForType(data.nodeType);
 
   return (
-    <div style={styles.container(config, selected)}>
+    <div className={`node-container ${selected ? 'selected' : ''}`} style={styles.container(config)}>
       {showInput && (
-        <div style={styles.inputHandleWrapper}>
-           {/* We use className="target" so index.css can target it.
-              Inline styles here are minimal/overridden.
-           */}
-           <Handle 
-             type="target" 
-             position={Position.Left} 
-             id="in"
-             style={{ background: '#555', border: '2px solid #fff' }}
-           />
-        </div>
+        <Handle 
+          type="target" 
+          position={Position.Left} 
+          id="in"
+        />
       )}
 
       <div style={styles.header(config)}>
         <div style={styles.iconContainer(config)}>
            {IconComponent}
         </div>
-        <div style={styles.headerContent}>
+        <div style={styles.headerTextCol} className="node-header-content">
           <div style={styles.titleText(config)} title={data.label}>{data.label}</div>
           <div style={styles.subTitleText}>{config.label}</div>
         </div>
       </div>
 
       <div style={styles.body}>
+        {/* Children will populate the rows (Exit handles, etc.) */}
+        {/* We expect children to use the css class 'node-exit-row' for handles */}
         {children}
       </div>
     </div>
