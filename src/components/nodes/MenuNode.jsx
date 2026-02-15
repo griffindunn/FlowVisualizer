@@ -3,7 +3,6 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const MenuNode = ({ data, selected }) => {
-  // Now populated by the new processWxccJson logic
   const choices = data.details?.choices || {};
 
   return (
