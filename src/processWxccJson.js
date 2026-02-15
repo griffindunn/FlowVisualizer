@@ -51,62 +51,48 @@ export const transformWxccJson = (json) => {
       let details = { ...activity.properties };
       const props = activity.properties || {};
 
-      // MENU NODE LOGIC
+      // --- MENU & CASE EXTRACTION ---
+      const getChoices = (propKeys, propLabels) => {
+          const result = [];
+          const keys = props[propKeys] || [];
+          const labels = props[propLabels] || props[propLabels.replace(':', '_')] || [];
+          
+          if (Array.isArray(keys) && keys.length > 0) {
+              keys.forEach((key, i) => {
+                  result.push({ id: key, label: labels[i] || key });
+              });
+          } else {
+              // Fallback: Check links
+              const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
+              myLinks.forEach(link => {
+                  const key = link.interactionCondition || link.name;
+                  const isSystem = ['error', 'timeout', 'invalid', 'failure'].some(k => String(key).includes(k));
+                  if (key && !isSystem && key !== 'default') {
+                      result.push({ id: key, label: link.label || link.displayName || key });
+                  }
+              });
+          }
+          return result;
+      };
+
       if (nodeType === 'MenuNode') {
-        const extractedChoices = [];
-        const keys = props.menuLinks || [];
-        const labels = props["menuLinks:input"] || props.menuLinks_input || []; 
-        
-        if (Array.isArray(keys) && keys.length > 0) {
-            keys.forEach((key, i) => {
-                extractedChoices.push({
-                    id: key,
-                    label: labels[i] || `Option ${key}`
-                });
-            });
-        } else {
-            const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
-            myLinks.forEach(link => {
-                const key = link.interactionCondition || link.name;
-                const isSystem = ['error', 'timeout', 'invalid', 'failure'].some(k => String(key).includes(k));
-                if (key && !isSystem) {
-                    extractedChoices.push({
-                        id: key,
-                        label: link.label || link.displayName || key
-                    });
-                }
-            });
-        }
-        details.choices = extractedChoices;
+          details.choices = getChoices('menuLinks', 'menuLinks:input');
       }
-
-      // CASE NODE LOGIC
       if (nodeType === 'CaseNode') {
-        const extractedCases = [];
-        const keys = props.menuLinks || [];
-        const labels = props["menuLinks:input"] || props.menuLinks_input || []; 
-
-        if (Array.isArray(keys) && keys.length > 0) {
-            keys.forEach((key, i) => {
-                extractedCases.push({
-                    id: key,
-                    label: labels[i] || `Case ${key}`
-                });
-            });
-        } else {
-            const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
-            myLinks.forEach(link => {
-                const key = link.interactionCondition || link.name;
-                const isSystem = ['error', 'timeout', 'failure', 'default'].some(k => String(key).includes(k));
-                if (key && !isSystem && key !== 'default') {
-                    extractedCases.push({
-                        id: key,
-                        label: link.label || link.displayName || key
-                    });
-                }
-            });
-        }
-        details.cases = extractedCases;
+          // Check standard menuLinks first (common in new WxCC), then queueLinks (older)
+          let cases = getChoices('menuLinks', 'menuLinks:input');
+          if (cases.length === 0) cases = getChoices('queueLinks', 'queueLinks:input');
+          if (cases.length === 0) cases = getChoices('links', 'links:input'); // Generic fallback
+          details.cases = cases;
+      }
+      
+      // FIX FOR PLAY MESSAGE TTS
+      if (nodeType === 'PlayMessageNode' && !details.message) {
+          if (details.promptsTts && details.promptsTts.length > 0) {
+              details.message = details.promptsTts[0].value || details.promptsTts[0].name;
+          } else if (details.prompts && details.prompts.length > 0) {
+              details.message = details.prompts[0].value || details.prompts[0].name;
+          }
       }
 
       nodes.push({
@@ -128,7 +114,6 @@ export const transformWxccJson = (json) => {
       links.forEach((link) => {
         let rawHandleId = link.interactionCondition || link.name || link.conditionExpr;
         
-        // --- HANDLE MAPPING ---
         const sourceNode = activities[link.sourceActivityId];
         const sourceNodeTypeString = sourceNode 
             ? (sourceNode.properties?.activityName || sourceNode.activityName || 'unknown') 
@@ -136,21 +121,12 @@ export const transformWxccJson = (json) => {
         const config = getNodeConfig(sourceNodeTypeString);
         const componentType = config.nodeType;
 
-        let finalHandleId = 'default'; 
+        let finalHandleId = 'default';
 
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
         const isTimeout = String(rawHandleId).toLowerCase().includes('timeout');
 
-        // CONDITION NODE SPECIFIC LOGIC
-        if (componentType === 'ConditionNode') {
-             // WxCC uses "true"/"false" strings in conditionExpr
-             if (String(rawHandleId).toLowerCase() === 'true') finalHandleId = 'true';
-             else if (String(rawHandleId).toLowerCase() === 'false') finalHandleId = 'false';
-             else if (isErrorPath) finalHandleId = 'error';
-             else finalHandleId = 'default';
-        } 
-        // ERROR LOGIC
-        else if (isErrorPath) {
+        if (isErrorPath) {
             if (String(rawHandleId).toLowerCase().includes('busy')) finalHandleId = 'busy';
             else if (String(rawHandleId).toLowerCase().includes('no_answer')) finalHandleId = 'no_answer';
             else if (String(rawHandleId).toLowerCase().includes('invalid')) finalHandleId = 'invalid';
@@ -160,10 +136,26 @@ export const transformWxccJson = (json) => {
         } else if (isTimeout) {
             finalHandleId = 'timeout';
         } else {
-            // HAPPY PATH LOGIC
+            // --- SPECIFIC NODE MAPPING ---
             if (componentType === 'MenuNode' || componentType === 'CaseNode') {
                 finalHandleId = rawHandleId; 
-            } else {
+            } 
+            else if (componentType === 'ConditionNode') {
+                // Condition nodes map 'true'/'false'
+                if (String(rawHandleId).toLowerCase() === 'true') finalHandleId = 'true';
+                else if (String(rawHandleId).toLowerCase() === 'false') finalHandleId = 'false';
+                else finalHandleId = 'default';
+            }
+            else if (componentType === 'BusinessHoursNode') {
+                // Business Hours Mapping
+                const lower = String(rawHandleId).toLowerCase();
+                if (lower.includes('working') || lower.includes('open')) finalHandleId = 'workingHours';
+                else if (lower.includes('holiday')) finalHandleId = 'holiday';
+                else if (lower.includes('force') || lower.includes('override')) finalHandleId = 'override';
+                else finalHandleId = 'default'; // 'default' is usually "Closed"
+            }
+            else {
+                // Force everything else (SetVar, PlayMsg, etc) to 'default'
                 finalHandleId = 'default';
             }
         }
