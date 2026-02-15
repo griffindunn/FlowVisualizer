@@ -9,6 +9,7 @@ const QueueContactNode = ({ data, selected }) => {
         {data.details?.queueName || 'Target Queue'}
       </div>
 
+      {/* Success Path */}
       <div className="node-exit-row">
         <span className="exit-label">Success</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
@@ -16,13 +17,10 @@ const QueueContactNode = ({ data, selected }) => {
 
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
+      {/* Failure Path */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#D32F2F' }}>Failure</span>
         <Handle type="source" position={Position.Right} id="failure" className="source" />
-      </div>
-      <div className="node-exit-row">
-        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
-        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
