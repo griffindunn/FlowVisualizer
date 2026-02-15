@@ -9,6 +9,7 @@ const QueueLookupNode = ({ data, selected }) => {
         Get Queue Stats
       </div>
 
+      {/* Success Output */}
       <div className="node-exit-row">
         <span className="exit-label">Success</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
@@ -16,17 +17,16 @@ const QueueLookupNode = ({ data, selected }) => {
 
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
+      {/* Insufficient Data Output */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#999' }}>Insufficient Data</span>
         <Handle type="source" position={Position.Right} id="insufficient_data" className="source" />
       </div>
+
+      {/* Failure Output */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#D32F2F' }}>Failure</span>
         <Handle type="source" position={Position.Right} id="failure" className="source" />
-      </div>
-      <div className="node-exit-row">
-        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
-        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
