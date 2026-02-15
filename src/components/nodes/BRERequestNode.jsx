@@ -1,31 +1,31 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const BRERequestNode = ({ data, selected }) => {
-  const params = data.details?.httpQueryParameters || {};
-  const context = params.context || 'BRE Lookup';
-
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', color: '#888', textTransform:'uppercase'}}>Context</div>
-         <div style={{fontSize: '12px', fontWeight:'bold', color: '#333'}}>{context}</div>
+      <div style={{ padding: '8px 12px', fontSize: '11px', color: '#555' }}>
+        BRE Execution
       </div>
 
-      <div style={row.firstRowContainer}>
-         <span style={row.successLabel}>Success</span>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row">
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      <div style={row.divider} />
-      {['timeout', 'error'].map(key => (
-        <div key={key} style={row.errorContainer}>
-           <span style={row.errorLabel}>{key}</span>
-           <Handle type="source" position={Position.Right} id={key} style={row.handleError} />
-        </div>
-      ))}
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Timeout</span>
+        <Handle type="source" position={Position.Right} id="timeout" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
     </BaseNodeShell>
   );
 };
-export default memo(BRERequestNode);
+
+export default BRERequestNode;
