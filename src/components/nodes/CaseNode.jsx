@@ -7,11 +7,10 @@ const CaseNode = ({ data, selected }) => {
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-       <div style={{ padding: '8px 0 8px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
+       <div style={{ padding: '8px 0 4px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
         Cases
       </div>
 
-      {/* Dynamic Cases */}
       {Object.entries(cases).map(([key, label]) => (
         <div key={key} className="node-exit-row">
            <div style={{ 
@@ -25,7 +24,7 @@ const CaseNode = ({ data, selected }) => {
           }}>
             {key}
           </div>
-          <span className="exit-label" title={label} style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span className="exit-label" title={label}>
             {label}
           </span>
           <Handle type="source" position={Position.Right} id={key} className="source" />
@@ -34,7 +33,6 @@ const CaseNode = ({ data, selected }) => {
 
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
-      {/* Default Path */}
       <div className="node-exit-row">
         <span className="exit-label">Default</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
