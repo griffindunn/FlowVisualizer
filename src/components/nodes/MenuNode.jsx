@@ -3,26 +3,18 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const MenuNode = ({ data, selected }) => {
-  // Retrieve the choices map populated by the JSON parser
-  const choices = data.details?.choices || {};
+  // Now we expect an Array: [{ id: "9", label: "Language" }, ...]
+  const choices = data.details?.choices || [];
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      {/* Section Header */}
-      <div style={{ 
-        padding: '8px 0 4px 12px', 
-        fontSize: '10px', 
-        fontWeight: 'bold', 
-        color: '#aaa', 
-        textTransform: 'uppercase' 
-      }}>
+      <div style={{ padding: '8px 0 4px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
         Choices
       </div>
 
-      {/* Dynamic Menu Choices Loop */}
-      {Object.entries(choices).map(([key, label]) => (
-        <div key={key} className="node-exit-row">
-          {/* Key Badge (e.g. "1", "2") */}
+      {/* Render based on Ordered Array */}
+      {choices.map((choice) => (
+        <div key={choice.id} className="node-exit-row">
           <div style={{ 
             background: '#fff', 
             border: '1px solid #ccc', 
@@ -35,38 +27,28 @@ const MenuNode = ({ data, selected }) => {
             minWidth: '15px',
             textAlign: 'center'
           }}>
-            {key}
+            {choice.id}
           </div>
-          
-          {/* Choice Label */}
-          <span className="exit-label" title={label}>
-            {label}
-          </span>
-
-          {/* Connection Dot */}
+          <span className="exit-label" title={choice.label}>{choice.label}</span>
           <Handle 
             type="source" 
             position={Position.Right} 
-            id={key} 
+            id={choice.id} 
             className="source"
           />
         </div>
       ))}
 
-      {/* Separator Line */}
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
-      {/* Standard Error Paths */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#999' }}>No-Input Timeout</span>
         <Handle type="source" position={Position.Right} id="timeout" className="source" />
       </div>
-      
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#999' }}>Unmatched Entry</span>
         <Handle type="source" position={Position.Right} id="invalid" className="source" />
       </div>
-      
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
         <Handle type="source" position={Position.Right} id="error" className="source" />
