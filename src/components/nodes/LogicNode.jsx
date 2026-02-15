@@ -1,40 +1,28 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
-const LogicNode = memo(({ data, selected }) => {
-  const { details, nodeType } = data;
-  const t = nodeType.toLowerCase();
-  let branches = [];
-  if (details?.menuLinks) {
-     branches = details.menuLinks.filter(k => k !== 'default' && k !== '0').map(k => ({ id: k, label: k }));
-  }
-  if (t.includes('business')) {
-     branches = [{ id: 'workingHours', label: 'Open' }, { id: 'holidays', label: 'Holiday' }, { id: 'override', label: 'Override' }];
-  }
-
+const LogicNode = ({ data, selected }) => {
   return (
     <BaseNodeShell data={data} selected={selected}>
-      {branches.length > 0 && <div style={row.sectionTitle}>Conditions</div>}
-      {branches.map((branch) => (
-         <div key={branch.id} style={row.container}>
-           <div style={row.box}>{branch.label}</div>
-           <Handle type="source" position={Position.Right} id={branch.id} style={row.handleRight} />
-         </div>
-      ))}
-      <div style={row.container}>
-         <div style={row.box}>Default / False</div>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
-         <Handle type="source" position={Position.Right} id="0" style={{...row.handleRight, opacity: 0}} />
-         <Handle type="source" position={Position.Right} id="false" style={{...row.handleRight, opacity: 0}} />
+      <div style={{ padding: '8px 12px', fontSize: '11px', color: '#555' }}>
+        {/* Display specific details if available, otherwise default text */}
+        {data.details?.expression || 'Logic Execution'}
       </div>
-      <div style={row.divider} />
-      <div style={row.errorContainer}>
-         <span style={row.errorLabel}>Undefined Error</span>
-         <Handle type="source" position={Position.Right} id="error" style={row.handleError} />
+
+      <div className="node-exit-row">
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
+      </div>
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
-});
+};
+
 export default LogicNode;
