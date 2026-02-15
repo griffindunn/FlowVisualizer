@@ -51,30 +51,38 @@ export const transformWxccJson = (json) => {
       const config = getNodeConfig(rawType);
       const nodeType = config.nodeType || 'DefaultNode';
 
-      // --- EXTRACTION LOGIC FOR MENUS & CASES ---
+      // --- CRITICAL FIX: FIND OUTGOING LINKS ---
+      // We look through the GLOBAL 'links' array to find ones coming FROM this activity
+      const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
+
       let details = { ...activity.properties };
 
-      // Fix for Menu Node: Extract choices
+      // LOGIC: Menu Node Choices
       if (nodeType === 'MenuNode') {
-        const menuLinks = activity.links || [];
         const extractedChoices = {};
-        menuLinks.forEach(link => {
-            // Usually 'link.name' or 'link.interactionCondition' holds the key (e.g., "1", "2")
-            // and 'link.label' holds the friendly name (e.g. "Sales")
-            const key = link.interactionCondition || link.name; 
-            extractedChoices[key] = link.label || `Option ${key}`;
+        myLinks.forEach(link => {
+            // Exclude standard system events from the "Choices" list
+            const key = link.interactionCondition || link.name;
+            const isSystemPath = ['error', 'timeout', 'invalid', 'failure', 'insufficient_data', 'busy', 'no_answer', 'exception'].includes(key);
+            
+            if (key && !isSystemPath) {
+                // Use label if available, otherwise fallback to the key (digit)
+                extractedChoices[key] = link.label || `Option ${key}`;
+            }
         });
         details.choices = extractedChoices;
       }
 
-      // Fix for Case Node: Extract branches
+      // LOGIC: Case Node Outcomes
       if (nodeType === 'CaseNode') {
-        const caseLinks = activity.links || [];
         const extractedCases = {};
-        caseLinks.forEach(link => {
-            // Case logic often uses interactionCondition as the match value
-            const key = link.interactionCondition;
-            if (key) {
+        myLinks.forEach(link => {
+            const key = link.interactionCondition || link.name;
+            // Case nodes usually rely on the 'default' path as the fallback, so we treat 'default' as a case too if labeled
+            // But we filter strict errors.
+            const isSystemPath = ['error', 'timeout', 'failure'].includes(key);
+
+            if (key && !isSystemPath && key !== 'default') {
                 extractedCases[key] = link.label || key;
             }
         });
@@ -88,7 +96,7 @@ export const transformWxccJson = (json) => {
         data: {
           label: activity.name,
           nodeType: rawType,
-          details: details, // Parsed details with choices/cases
+          details: details, 
           isEventNode: isEvent             
         },
         zIndex: 10 
@@ -158,7 +166,7 @@ export const transformWxccJson = (json) => {
     });
   }
 
-  // Sort edges: Red (Error) first so they draw behind, Black (Success) last so they draw on top.
+  // Sort: Red behind Black
   const sortedEdges = rawEdges.sort((a, b) => {
       const scoreA = a.data.isRedLine ? 0 : 1; 
       const scoreB = b.data.isRedLine ? 0 : 1;
