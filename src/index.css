@@ -7,51 +7,69 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- 1. EXIT HANDLES (Source) --- */
-/* Force the dot inside the node on the right */
-.react-flow__handle.source {
-  right: 8px !important; /* Move inside */
-  top: 50% !important;
-  transform: translate(0, -50%) !important; /* Center vertical */
+/* --- 1. HANDLE BASE STYLES (Dots) --- */
+.react-flow__handle {
   width: 10px;
   height: 10px;
+  min-width: 10px;   /* Prevents stretching into ovals */
+  min-height: 10px;  /* Prevents stretching into ovals */
+  flex-shrink: 0;    /* Prevents being squashed by flex containers */
   background: #555;
   border: 2px solid #fff;
   border-radius: 50%;
   z-index: 100;
 }
 
-/* Add breathing room between the text and the exit dot */
-/* This targets the flex container holding the label and the dot */
-.react-flow__node div[style*="justify-content: flex-end"] {
-  padding-right: 28px !important; /* Push text back to make room for dot */
+/* --- 2. EXIT HANDLES (Right Side) --- */
+/* We place these INSIDE the node as requested */
+.react-flow__handle.source {
+  right: 12px !important; 
+  top: 50% !important;
+  transform: translate(0, -50%) !important;
 }
 
-/* --- 2. ENTRY HANDLES (Target) --- */
-/* Force the dot inside the node on the left, but close to the edge */
+/* --- 3. ENTRY HANDLES (Left Side) --- */
+/* We place these ON THE BORDER (-5px) so the arrow connects cleanly */
 .react-flow__handle.target {
-  left: 6px !important; /* Inside, close to edge */
-  width: 10px;
-  height: 10px;
-  background: #555;
-  border: 2px solid #fff;
-  z-index: 100;
+  left: -5px !important; 
+  top: 24px !important; /* Vertically centered in the 48px header */
 }
 
-/* Prevent Header Title from overlapping the input dot */
-.react-flow__node div[style*="background:"] { 
-  /* This targets the header bar */
-  padding-left: 24px !important; /* Make room for the input dot */
+/* --- 4. NODE CONTENT SPACING --- */
+
+/* The row containing the label and the exit dot */
+.node-exit-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 24px;
+  position: relative;
+  width: 100%;
+  padding-right: 32px; /* Creates space so text doesn't hit the dot */
+  box-sizing: border-box;
 }
 
-/* --- 3. EDGE Z-INDEX --- */
-/* Ensure standard paths are thicker and smoother */
+/* The label text inside the exit row */
+.exit-label {
+  font-size: 11px; /* Slightly larger for readability */
+  font-weight: 500;
+  color: #444;
+  white-space: nowrap;
+}
+
+/* The Header Title - add padding so it doesn't hit the entry dot */
+.node-header-content {
+  padding-left: 12px; 
+}
+
+/* --- 5. EDGE STYLING --- */
 .react-flow__edge-path {
   stroke-width: 2px;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-/* Optional: Highlight selected nodes nicely */
-.react-flow__node.selected {
-  box-shadow: 0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15) !important;
+/* Selected State */
+.react-flow__node.selected .node-container {
+  box-shadow: 0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15);
 }
