@@ -1,33 +1,40 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const SetVariableNode = ({ data, selected }) => {
-  const vars = data.details?.setVariablesArray || [];
+  // data.details is typically an object like { varName: "value", var2: "value2" }
+  const variables = data.details || {};
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      {/* Show Variable List */}
-      <div style={{padding: '0 10px 8px 10px'}}>
-        {vars.slice(0, 4).map((v, i) => (
-          <div key={i} style={{fontSize: '11px', color: '#555', marginBottom: '2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-            <span style={{fontWeight:'bold'}}>{v.srcVariable || v.name}</span> = {v.literal || v.value}
+      {/* Variable List */}
+      <div style={{ padding: '8px 12px' }}>
+        {Object.entries(variables).slice(0, 5).map(([key, val]) => (
+          <div key={key} style={{ fontSize: '11px', color: '#555', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 'bold' }}>{key}</span> = {String(val)}
           </div>
         ))}
-        {vars.length > 4 && <div style={{fontSize:'10px', color:'#999'}}>+ {vars.length - 4} more</div>}
+        {Object.keys(variables).length > 5 && (
+           <div style={{ fontSize: '10px', color: '#999', marginTop: '4px' }}>
+             + {Object.keys(variables).length - 5} more
+           </div>
+        )}
       </div>
 
-      <div style={row.firstRowContainer}>
-         <span style={row.successLabel}>Success</span>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row" style={{ marginTop: '5px' }}>
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      <div style={row.divider} />
-      <div style={row.errorContainer}>
-         <span style={row.errorLabel}>Undefined Error</span>
-         <Handle type="source" position={Position.Right} id="error" style={row.handleError} />
+      
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
 };
-export default memo(SetVariableNode);
+
+export default SetVariableNode;
