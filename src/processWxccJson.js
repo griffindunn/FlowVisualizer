@@ -8,7 +8,7 @@ const SPACING_FACTOR_Y = 2.2;
 
 export const transformWxccJson = (json) => {
   const nodes = [];
-  const edges = [];
+  let rawEdges = []; // We will sort this later
   let maxMainY = 0;
 
   const getWidget = (id, currentDiagram) => {
@@ -21,6 +21,7 @@ export const transformWxccJson = (json) => {
     const { activities, links } = flowData;
     const activityList = Object.values(activities);
 
+    // --- NODES ---
     activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, diagramData);
       
@@ -31,14 +32,17 @@ export const transformWxccJson = (json) => {
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
+        // Fallback layout if coordinates missing
         if (isEvent) {
-          x = (index % 2 === 0) ? 0 : 400; 
-          y = index * 250;
+           // Vertical stack for events
+           x = (index % 2 === 0) ? 0 : 400; 
+           y = index * 200;
         } else {
-          const col = index % 5;
-          const row = Math.floor(index / 5);
-          x = col * 450;
-          y = row * 300;
+           // Grid for main
+           const col = index % 5;
+           const row = Math.floor(index / 5);
+           x = col * 450;
+           y = row * 300;
         }
       }
 
@@ -63,6 +67,7 @@ export const transformWxccJson = (json) => {
       });
     });
 
+    // --- EDGES ---
     if (links) {
       links.forEach((link) => {
         let sourceHandleId = link.conditionExpr;
@@ -70,50 +75,38 @@ export const transformWxccJson = (json) => {
              sourceHandleId = 'default';
         }
 
-        // Detect Error Paths
-        // Note: We deliberately exclude 'timeout' if it's the specific "no-input" type, 
-        // but typically 'timeout' is considered an error path in visualizers. 
-        // User asked to NOT hide "no-input timeout". 
-        // We will mark them as "red" in color, but we will add a data flag 'isHideableError' 
-        // so the UI knows which ones to toggle.
-        
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].includes(sourceHandleId);
         const isTimeout = sourceHandleId === 'timeout'; 
-
-        // Visual Color Logic
-        // Timeout is usually red too, but we separate the Z-Index logic
+        
+        // Red line logic: Error OR Timeout
         const isRedLine = isErrorPath || isTimeout;
         const color = isRedLine ? '#D32F2F' : '#555';
 
-        // Z-INDEX LOGIC: Red lines (0) below Black lines (1)
-        const zIndex = isRedLine ? 0 : 1;
-
-        edges.push({
+        rawEdges.push({
           id: `${prefix}${link.id}`,
           source: `${prefix}${link.sourceActivityId}`,
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE, 
-          zIndex: zIndex, // <-- Controlled Z-Index
           markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: color },
           style: { stroke: color, strokeWidth: 2 }, 
           data: { 
             isEventEdge: isEvent,
-            isError: isRedLine,
-            // Logic for the Toggle: User wants to hide errors, but keep 'timeout' visible.
-            isHideable: isErrorPath && !isTimeout // Hide 'error', keep 'timeout'
+            isRedLine: isRedLine, // Helper for sorting
+            isHideable: isErrorPath && !isTimeout // Hide 'error' but keep 'timeout'
           }
         });
       });
     }
   };
 
+  // 1. Process Main
   if (json.process) {
     processFlowScope(json.process, json.diagram, '', false, 0);
   }
 
+  // 2. Process Events
   let eventCursorY = maxMainY + 2000; 
-
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
       nodes.push({
@@ -128,19 +121,23 @@ export const transformWxccJson = (json) => {
         processFlowScope(eventData.process, eventData.diagram, `${eventName}-`, true, eventCursorY);
       }
       
-      let blockHeight = 500;
-      if (eventData.diagram && eventData.diagram.widgets) {
-         const yValues = Object.values(eventData.diagram.widgets)
-             .map(w => w.point?.y || 0)
-             .filter(y => !isNaN(y));
-         if (yValues.length > 0) {
-             const maxY = Math.max(...yValues);
-             blockHeight = (maxY * SPACING_FACTOR_Y) + 500;
-         }
+      let blockHeight = 600;
+      // Simple heuristic for next block pos
+      if(eventData.process?.activities) {
+          blockHeight = (Object.keys(eventData.process.activities).length * 100) + 500;
       }
       eventCursorY += blockHeight; 
     });
   }
 
-  return { nodes, edges };
+  // --- SORT EDGES ---
+  // We want Red lines (Errors) to be drawn FIRST (Bottom layer)
+  // We want Black lines (Success) to be drawn LAST (Top layer)
+  const sortedEdges = rawEdges.sort((a, b) => {
+      const scoreA = a.data.isRedLine ? 0 : 1; 
+      const scoreB = b.data.isRedLine ? 0 : 1;
+      return scoreA - scoreB; 
+  });
+
+  return { nodes, edges: sortedEdges };
 };
