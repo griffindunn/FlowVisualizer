@@ -9,27 +9,36 @@ const BusinessHoursNode = ({ data, selected }) => {
         Check Schedule
       </div>
 
+      {/* 1. Working Hours (Open) */}
       <div className="node-exit-row">
-        <span className="exit-label">Open (Working Hours)</span>
+        <span className="exit-label">Working Hours</span>
         <Handle type="source" position={Position.Right} id="workingHours" className="source" />
       </div>
+
+      {/* 2. Holidays */}
       <div className="node-exit-row">
-        <span className="exit-label">Closed (Default)</span>
-        <Handle type="source" position={Position.Right} id="default" className="source" />
+        <span className="exit-label">Holidays</span>
+        {/* Note: JSON often uses 'holiday' or 'holidays'. Ensure parser maps correctly. */}
+        <Handle type="source" position={Position.Right} id="holiday" className="source" />
       </div>
-      <div className="node-exit-row">
-        <span className="exit-label">Holiday</span>
-        <Handle type="source" position={Position.Right} id="holidays" className="source" />
-      </div>
+
+      {/* 3. Override (Force Close/Open) */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#E65100' }}>Override</span>
         <Handle type="source" position={Position.Right} id="override" className="source" />
       </div>
 
+      {/* 4. Default (Closed/Other) */}
+      <div className="node-exit-row">
+        <span className="exit-label">Default</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
+      </div>
+
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
+      {/* 5. Undefined Error */}
       <div className="node-exit-row">
-        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Undefined Error</span>
         <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
