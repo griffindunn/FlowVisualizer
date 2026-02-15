@@ -10,7 +10,7 @@ export const transformWxccJson = (json) => {
   let rawEdges = []; 
   let maxMainY = 0;
 
-  // Helper: Find widget layout data
+  // Helper to find layout coordinates
   const getWidget = (id, currentDiagram) => {
     return currentDiagram?.widgets?.[id];
   };
@@ -21,13 +21,6 @@ export const transformWxccJson = (json) => {
     const { activities, links } = flowData;
     const activityList = Object.values(activities);
 
-    // --- Helper: Get Internal Links for Menu/Case Data ---
-    const getLinksForActivity = (activity) => {
-        const internal = activity.links || activity.outcomes || [];
-        if (internal.length > 0) return internal;
-        return (links || []).filter(l => l.sourceActivityId === activity.id);
-    };
-
     // --- 1. NODES ---
     activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, diagramData);
@@ -35,11 +28,11 @@ export const transformWxccJson = (json) => {
       let x = 0;
       let y = 0;
 
-      // Coordinate Logic
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
+        // Fallback Layout
         if (isEvent) {
            x = (index % 2 === 0) ? 0 : 400; 
            y = index * 250;
@@ -58,36 +51,44 @@ export const transformWxccJson = (json) => {
       const config = getNodeConfig(rawType);
       const nodeType = config.nodeType || 'DefaultNode';
 
-      // --- EXTRACT DETAILS ---
       let details = { ...activity.properties };
-      const nodeLinks = getLinksForActivity(activity);
+
+      // --- CRITICAL FIX: LINK EXTRACTION ---
+      // We prioritize the GLOBAL links array because it contains the actual wiring
+      // and user-defined labels found on the canvas.
+      const outgoingLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
 
       // LOGIC: Menu Node Choices
       if (nodeType === 'MenuNode') {
         const extractedChoices = {};
-        nodeLinks.forEach(link => {
+        
+        outgoingLinks.forEach(link => {
+            // The "Key" (Digit) is usually in interactionCondition (e.g. "1")
             const key = link.interactionCondition || link.conditionExpr || link.name;
             
-            // PRIORITY FIX: Check 'name' BEFORE 'label'. 
-            // 'label' is often the digit ("1"), 'name' is the user text ("Sales").
-            const label = link.displayName || link.name || link.label || link.description || key;
-            
+            // The "Label" (Text) is in link.label. 
+            // FIX: We MUST check 'label' before 'name'. 'name' often equals 'key' (the digit).
+            const label = link.label || link.displayName || link.description || link.name || key;
+
+            // Filter out system paths (errors)
             const isSystem = ['error', 'timeout', 'invalid', 'failure', 'busy', 'no_answer', 'exception'].some(k => String(key).toLowerCase().includes(k));
             
             if (key && !isSystem) {
                 extractedChoices[key] = label;
             }
         });
+        
         details.choices = extractedChoices;
       }
 
       // LOGIC: Case Node Outcomes
       if (nodeType === 'CaseNode') {
         const extractedCases = {};
-        nodeLinks.forEach(link => {
+        
+        outgoingLinks.forEach(link => {
             const key = link.interactionCondition || link.conditionExpr || link.name;
-            // PRIORITY FIX: Check 'name' BEFORE 'label'
-            const label = link.displayName || link.name || link.label || link.description || key;
+            // FIX: Check 'label' first to get the user-friendly text
+            const label = link.label || link.displayName || link.description || link.name || key;
             
             const isSystem = ['error', 'timeout', 'failure', 'default'].some(k => String(key).toLowerCase().includes(k));
 
@@ -115,52 +116,50 @@ export const transformWxccJson = (json) => {
     // --- 2. EDGES ---
     if (links) {
       links.forEach((link) => {
-        let rawHandleId = link.interactionCondition || link.name || link.conditionExpr;
+        let rawHandleId = link.interactionCondition || link.conditionExpr || link.name;
         
-        // --- HANDLE NORMALIZATION ---
-        
-        // 1. Identify Source Node Type to decide connection logic
+        // --- HANDLE MAPPING FIX ---
+        // We must decide if this edge connects to a specific port (like "1") 
+        // or the default success port (like "default").
+
         const sourceNode = activities[link.sourceActivityId];
-        // Safely get the type string (handle missing props)
         const sourceNodeTypeString = sourceNode 
             ? (sourceNode.properties?.activityName || sourceNode.activityName || 'unknown') 
             : 'unknown';
-            
         const config = getNodeConfig(sourceNodeTypeString);
         const componentType = config.nodeType;
 
-        let finalHandleId = 'default'; 
+        let finalHandleId = 'default';
 
-        // 2. Identify Edge Type (Error vs Success)
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
         const isTimeout = String(rawHandleId).toLowerCase().includes('timeout');
 
-        // 3. Assign Final ID
         if (isErrorPath) {
-            if (String(rawHandleId).toLowerCase().includes('busy')) finalHandleId = 'busy';
-            else if (String(rawHandleId).toLowerCase().includes('no_answer')) finalHandleId = 'no_answer';
-            else if (String(rawHandleId).toLowerCase().includes('invalid')) finalHandleId = 'invalid';
-            else if (String(rawHandleId).toLowerCase().includes('insufficient')) finalHandleId = 'insufficient_data';
-            else if (String(rawHandleId).toLowerCase().includes('failure')) finalHandleId = 'failure';
-            else finalHandleId = 'error'; 
+             // Map precise error handles
+             if (String(rawHandleId).toLowerCase().includes('busy')) finalHandleId = 'busy';
+             else if (String(rawHandleId).toLowerCase().includes('no_answer')) finalHandleId = 'no_answer';
+             else if (String(rawHandleId).toLowerCase().includes('invalid')) finalHandleId = 'invalid';
+             else if (String(rawHandleId).toLowerCase().includes('insufficient')) finalHandleId = 'insufficient_data';
+             else if (String(rawHandleId).toLowerCase().includes('failure')) finalHandleId = 'failure';
+             else finalHandleId = 'error'; 
         } else if (isTimeout) {
-            finalHandleId = 'timeout';
+             finalHandleId = 'timeout';
         } else {
-            // HAPPY PATH LOGIC
-            if (componentType === 'MenuNode' || componentType === 'CaseNode') {
-                // For Menu/Case, we MUST match the specific key (e.g. "1")
-                finalHandleId = rawHandleId; 
-            } else {
-                // For SetVariable, PlayMessage, etc., force to 'default'
-                // This connects "Done", "Next", "True", "Success" all to the main dot.
-                finalHandleId = 'default';
-            }
+             // HAPPY PATH LOGIC
+             // Only Menu and Case nodes have numbered/named output ports.
+             if (componentType === 'MenuNode' || componentType === 'CaseNode') {
+                 finalHandleId = rawHandleId; 
+             } else {
+                 // For SetVariable, PlayMessage, LogicNode, etc., the Success port is ALWAYS 'default'.
+                 // Even if the JSON link is named "Done" or "True", we force it to 'default' so it snaps to the dot.
+                 finalHandleId = 'default';
+             }
         }
 
-        // Color & Z-Index
         const isRedLine = isErrorPath || isTimeout;
         const color = isRedLine ? '#D32F2F' : '#555';
-        const zIndex = isRedLine ? 1999 : 2000;
+        // Z-Index: 2000 (Black) / 1999 (Red) ensures lines are above nodes (zIndex 10)
+        const zIndex = isRedLine ? 1999 : 2000; 
 
         rawEdges.push({
           id: `${prefix}${link.id}`,
@@ -181,10 +180,12 @@ export const transformWxccJson = (json) => {
     }
   };
 
+  // Process Main
   if (json.process) {
     processFlowScope(json.process, json.diagram, '', false, 0);
   }
 
+  // Process Events
   let eventCursorY = maxMainY + 2000; 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
