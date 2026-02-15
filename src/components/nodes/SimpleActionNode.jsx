@@ -1,20 +1,27 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
-const SimpleActionNode = ({ data, selected, exits = ['error'] }) => (
-  <BaseNodeShell data={data} selected={selected}>
-    <div style={row.container}>
-       <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
-    </div>
-    <div style={row.divider} />
-    {exits.map(key => (
-      <div key={key} style={row.errorContainer}>
-         <span style={row.errorLabel}>{key === 'error' ? 'Undefined Error' : key}</span>
-         <Handle type="source" position={Position.Right} id={key} style={row.handleError} />
+const SimpleActionNode = ({ data, selected }) => {
+  return (
+    <BaseNodeShell data={data} selected={selected}>
+      <div style={{ padding: '8px 12px', fontSize: '11px', color: '#333', fontWeight: 'bold' }}>
+        {data.details?.actionName || 'Execute Action'}
       </div>
-    ))}
-  </BaseNodeShell>
-);
-export default memo(SimpleActionNode);
+
+      <div className="node-exit-row">
+        <span className="exit-label">Done</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
+      </div>
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
+    </BaseNodeShell>
+  );
+};
+
+export default SimpleActionNode;
