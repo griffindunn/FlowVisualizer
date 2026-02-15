@@ -3,24 +3,27 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const ConditionNode = ({ data, selected }) => {
-  const expression = data.details?.condition || 'Condition Expression';
+  // Extract the specific expression from the JSON properties
+  const expression = data.details?.expression || 'Condition Expression';
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      {/* Condition Text */}
-      <div style={{ padding: '8px 12px 8px 12px' }}>
-        <div style={{ 
-          fontSize: '11px', 
-          color: '#555', 
-          fontStyle: 'italic',
-          background: '#f9f9f9',
-          padding: '4px',
-          borderRadius: '4px',
-          border: '1px solid #eee',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}>
+      <div style={{ padding: '8px 12px' }}>
+        <div 
+          style={{ 
+            fontSize: '11px', 
+            color: '#858585', 
+            fontStyle: 'italic', 
+            background: '#f9f9f9', 
+            padding: '4px', 
+            borderRadius: '4px', 
+            border: '1px solid #eee',
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis', 
+            whiteSpace: 'nowrap' 
+          }}
+          title={expression} // Tooltip for long expressions
+        >
           {expression}
         </div>
       </div>
@@ -41,7 +44,7 @@ const ConditionNode = ({ data, selected }) => {
 
       {/* Error Path */}
       <div className="node-exit-row">
-        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Undefined Error</span>
         <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
