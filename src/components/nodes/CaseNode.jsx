@@ -24,7 +24,7 @@ const CaseNode = ({ data, selected }) => {
           }}>
             {key}
           </div>
-          <span className="exit-label" title={label}>
+          <span className="exit-label" title={label} style={{ maxWidth: '140px' }}>
             {label}
           </span>
           <Handle type="source" position={Position.Right} id={key} className="source" />
