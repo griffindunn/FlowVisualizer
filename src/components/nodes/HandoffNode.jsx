@@ -1,34 +1,36 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const HandoffNode = ({ data, selected }) => {
-  const flowName = data.details?.handOffFlow?.handOffToName || 'Unknown Flow';
-
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', color: '#888', textTransform:'uppercase'}}>Go To Flow</div>
-         <div style={{fontSize: '12px', fontWeight:'bold', color: '#7B1FA2', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-            {flowName}
-         </div>
+      <div style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 'bold', color: '#666' }}>
+        Go To: {data.details?.destination || 'Target Flow'}
       </div>
 
-      <div style={row.firstRowContainer}>
-         <span style={row.successLabel}>Connected</span>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row">
+        <span className="exit-label">Connected</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      
-      <div style={row.divider} />
-      
-      {['busy', 'no_answer', 'invalid', 'error'].map(key => (
-        <div key={key} style={row.errorContainer}>
-           <span style={row.errorLabel}>{key}</span>
-           <Handle type="source" position={Position.Right} id={key} style={row.handleError} />
-        </div>
-      ))}
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      {/* Even Handoffs sometimes have standard telephony outcomes in WxCC */}
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Busy</span>
+        <Handle type="source" position={Position.Right} id="busy" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>No Answer</span>
+        <Handle type="source" position={Position.Right} id="no_answer" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
     </BaseNodeShell>
   );
 };
-export default memo(HandoffNode);
+
+export default HandoffNode;
