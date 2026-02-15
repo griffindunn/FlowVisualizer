@@ -1,39 +1,38 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const CollectDigitsNode = ({ data, selected }) => {
-  const variable = data.details?.variable || 'Digits';
-
-  const exitLabels = {
-    timeout: 'No-Input Timeout',
-    invalid: 'Unmatched Entry',
-    error: 'Undefined Error',
-    interrupted: 'Interrupted'
-  };
+  const variableName = data.details?.variable || 'Digits';
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', color: '#888', textTransform:'uppercase'}}>Store In</div>
-         <div style={{fontSize: '12px', fontWeight:'bold', color: '#005073'}}>{variable}</div>
+      <div style={{ padding: '8px 12px' }}>
+         <div style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>Store In</div>
+         <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#005073' }}>{variableName}</div>
       </div>
 
-      <div style={row.firstRowContainer}>
-         <span style={row.successLabel}>Success</span>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row">
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      
-      <div style={row.divider} />
-      
-      {['timeout', 'invalid', 'error'].map(key => (
-        <div key={key} style={row.errorContainer}>
-           <span style={row.errorLabel}>{exitLabels[key] || key}</span>
-           <Handle type="source" position={Position.Right} id={key} style={row.handleError} />
-        </div>
-      ))}
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>No-Input Timeout</span>
+        <Handle type="source" position={Position.Right} id="timeout" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Unmatched Entry</span>
+        <Handle type="source" position={Position.Right} id="invalid" className="source" />
+      </div>
+       <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
     </BaseNodeShell>
   );
 };
-export default memo(CollectDigitsNode);
+
+export default CollectDigitsNode;
