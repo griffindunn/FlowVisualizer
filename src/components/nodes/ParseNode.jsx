@@ -1,29 +1,27 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const ParseNode = ({ data, selected }) => {
-  const inputVar = data.details?.inputVariable || 'Unknown';
-  const outputs = data.details?.outputVariableArray || [];
-
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', color: '#888'}}>Input: <strong>{inputVar}</strong></div>
-         {outputs.length > 0 && (
-           <div style={{fontSize: '10px', color: '#555', marginTop: '4px'}}>
-             Parsing {outputs.length} fields
-           </div>
-         )}
+       <div style={{ padding: '8px 12px', fontSize: '11px', color: '#555' }}>
+         Input: <strong>{data.details?.inputVariable || 'N/A'}</strong>
       </div>
 
-      <div style={row.firstRowContainer}>
-         <span style={row.successLabel}>Success</span>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row">
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      {/* Parse has NO error handle per your requirements */}
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
     </BaseNodeShell>
   );
 };
-export default memo(ParseNode);
+
+export default ParseNode;
