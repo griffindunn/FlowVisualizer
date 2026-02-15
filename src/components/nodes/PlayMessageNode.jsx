@@ -3,7 +3,22 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const PlayMessageNode = ({ data, selected }) => {
-  const message = data.details?.message || 'No message configured';
+  // Logic to find the actual message text
+  let message = 'No message configured';
+  const details = data.details || {};
+
+  // Check TTS array
+  if (details.promptsTts && details.promptsTts.length > 0) {
+      message = details.promptsTts[0].value || details.promptsTts[0].name;
+  } 
+  // Check Audio/Standard Prompts array
+  else if (details.prompts && details.prompts.length > 0) {
+      message = details.prompts[0].value || details.prompts[0].name;
+  }
+  // Check direct message property
+  else if (details.message) {
+      message = details.message;
+  }
 
   return (
     <BaseNodeShell data={data} selected={selected}>
