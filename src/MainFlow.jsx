@@ -9,7 +9,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Import global styles for handles/dots
 import './index.css';
 
 // --- Nodes ---
@@ -72,33 +71,29 @@ const MainFlow = ({ fileContent }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  // Toggles and History
+  // Toggles
   const [showEvents, setShowEvents] = useState(false);
+  const [showErrors, setShowErrors] = useState(true); // New Toggle state
   const [isLayouted, setIsLayouted] = useState(false);
   const [originalNodes, setOriginalNodes] = useState([]); 
 
-  // 1. Initial Data Load
+  // Initial Load
   useMemo(() => {
      if (fileContent) {
         const { nodes: initialNodes, edges: initialEdges } = transformWxccJson(fileContent);
         setNodes(initialNodes);
         setEdges(initialEdges);
-        // Save the pristine import state for resetting later
         setOriginalNodes(initialNodes);
         setIsLayouted(false);
      }
   }, [fileContent, setNodes, setEdges]);
 
-  // 2. Auto Layout Toggle Handler
+  // Layout Handler
   const onLayout = useCallback(() => {
     if (isLayouted) {
-      // REVERT: Restore nodes to original JSON positions
-      // We must map IDs to ensure React Flow sees them as the same objects if refs changed
       setNodes(originalNodes.map(n => ({...n})));
       setIsLayouted(false);
     } else {
-      // APPLY: Run the layout engine
-      // We pass the current nodes (which might be the original ones)
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
         nodes,
         edges
@@ -112,14 +107,23 @@ const MainFlow = ({ fileContent }) => {
   const onNodeClick = useCallback((_, node) => setSelectedNode(node), []);
   const onPaneClick = useCallback(() => setSelectedNode(null), []);
 
-  // 3. Filtering Logic for Display
+  // --- Filtering Logic ---
   const visibleNodes = showEvents 
     ? nodes 
     : nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
 
-  const visibleEdges = showEvents 
-    ? edges 
-    : edges.filter(e => !e.data?.isEventEdge);
+  // Filter Edges:
+  // 1. Check Event visibility
+  // 2. Check Error visibility (using the 'isHideable' flag we added)
+  const visibleEdges = edges.filter(e => {
+    // Hide if it's an event edge and events are hidden
+    if (!showEvents && e.data?.isEventEdge) return false;
+    
+    // Hide if it's a Hideable Error and Show Errors is OFF
+    if (!showErrors && e.data?.isHideable) return false;
+
+    return true;
+  });
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex' }}>
@@ -140,10 +144,9 @@ const MainFlow = ({ fileContent }) => {
           <Background color="#f0f0f0" gap={20} />
           <Controls />
           
-          {/* Top Right Controls Panel */}
           <Panel position="top-right" style={{ display: 'flex', gap: '10px' }}>
             
-            {/* Toggle Visibility Button */}
+            {/* Show/Hide Events */}
             <button 
               onClick={() => setShowEvents(!showEvents)}
               style={{
@@ -164,7 +167,28 @@ const MainFlow = ({ fileContent }) => {
               {showEvents ? '👁️ Hide Global Events' : '👁️ Show Global Events'}
             </button>
 
-            {/* Auto Layout Button */}
+             {/* Show/Hide Errors */}
+             <button 
+              onClick={() => setShowErrors(!showErrors)}
+              style={{
+                background: showErrors ? '#FFEBEE' : 'white', // Light red bg when on
+                border: '1px solid #ccc',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                color: showErrors ? '#C62828' : '#555',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              {showErrors ? '🚫 Hide Errors' : '🚫 Show Errors'}
+            </button>
+
+            {/* Auto Layout */}
             <button 
               onClick={onLayout}
               style={{
