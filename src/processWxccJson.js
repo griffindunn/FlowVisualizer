@@ -8,7 +8,7 @@ const SPACING_FACTOR_Y = 2.2;
 
 export const transformWxccJson = (json) => {
   const nodes = [];
-  let rawEdges = []; // We will sort this later
+  let rawEdges = []; 
   let maxMainY = 0;
 
   const getWidget = (id, currentDiagram) => {
@@ -21,7 +21,7 @@ export const transformWxccJson = (json) => {
     const { activities, links } = flowData;
     const activityList = Object.values(activities);
 
-    // --- NODES ---
+    // --- 1. NODES ---
     activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, diagramData);
       
@@ -32,13 +32,11 @@ export const transformWxccJson = (json) => {
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // Fallback layout if coordinates missing
+        // Fallback Layout
         if (isEvent) {
-           // Vertical stack for events
            x = (index % 2 === 0) ? 0 : 400; 
-           y = index * 200;
+           y = index * 250;
         } else {
-           // Grid for main
            const col = index % 5;
            const row = Math.floor(index / 5);
            x = col * 450;
@@ -53,6 +51,36 @@ export const transformWxccJson = (json) => {
       const config = getNodeConfig(rawType);
       const nodeType = config.nodeType || 'DefaultNode';
 
+      // --- EXTRACTION LOGIC FOR MENUS & CASES ---
+      let details = { ...activity.properties };
+
+      // Fix for Menu Node: Extract choices
+      if (nodeType === 'MenuNode') {
+        const menuLinks = activity.links || [];
+        const extractedChoices = {};
+        menuLinks.forEach(link => {
+            // Usually 'link.name' or 'link.interactionCondition' holds the key (e.g., "1", "2")
+            // and 'link.label' holds the friendly name (e.g. "Sales")
+            const key = link.interactionCondition || link.name; 
+            extractedChoices[key] = link.label || `Option ${key}`;
+        });
+        details.choices = extractedChoices;
+      }
+
+      // Fix for Case Node: Extract branches
+      if (nodeType === 'CaseNode') {
+        const caseLinks = activity.links || [];
+        const extractedCases = {};
+        caseLinks.forEach(link => {
+            // Case logic often uses interactionCondition as the match value
+            const key = link.interactionCondition;
+            if (key) {
+                extractedCases[key] = link.label || key;
+            }
+        });
+        details.cases = extractedCases;
+      }
+
       nodes.push({
         id: `${prefix}${activity.id}`,
         type: nodeType, 
@@ -60,17 +88,21 @@ export const transformWxccJson = (json) => {
         data: {
           label: activity.name,
           nodeType: rawType,
-          details: activity.properties,    
+          details: details, // Parsed details with choices/cases
           isEventNode: isEvent             
         },
         zIndex: 10 
       });
     });
 
-    // --- EDGES ---
+    // --- 2. EDGES ---
     if (links) {
       links.forEach((link) => {
         let sourceHandleId = link.conditionExpr;
+        // Normalize handle IDs
+        if (!sourceHandleId && link.interactionCondition) sourceHandleId = link.interactionCondition;
+        if (!sourceHandleId && link.name) sourceHandleId = link.name;
+
         if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out' || sourceHandleId === 'success') {
              sourceHandleId = 'default';
         }
@@ -78,7 +110,6 @@ export const transformWxccJson = (json) => {
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].includes(sourceHandleId);
         const isTimeout = sourceHandleId === 'timeout'; 
         
-        // Red line logic: Error OR Timeout
         const isRedLine = isErrorPath || isTimeout;
         const color = isRedLine ? '#D32F2F' : '#555';
 
@@ -92,20 +123,18 @@ export const transformWxccJson = (json) => {
           style: { stroke: color, strokeWidth: 2 }, 
           data: { 
             isEventEdge: isEvent,
-            isRedLine: isRedLine, // Helper for sorting
-            isHideable: isErrorPath && !isTimeout // Hide 'error' but keep 'timeout'
+            isRedLine: isRedLine, 
+            isHideable: isErrorPath && !isTimeout 
           }
         });
       });
     }
   };
 
-  // 1. Process Main
   if (json.process) {
     processFlowScope(json.process, json.diagram, '', false, 0);
   }
 
-  // 2. Process Events
   let eventCursorY = maxMainY + 2000; 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
@@ -122,17 +151,14 @@ export const transformWxccJson = (json) => {
       }
       
       let blockHeight = 600;
-      // Simple heuristic for next block pos
       if(eventData.process?.activities) {
-          blockHeight = (Object.keys(eventData.process.activities).length * 100) + 500;
+          blockHeight = (Object.keys(eventData.process.activities).length * 150) + 500;
       }
       eventCursorY += blockHeight; 
     });
   }
 
-  // --- SORT EDGES ---
-  // We want Red lines (Errors) to be drawn FIRST (Bottom layer)
-  // We want Black lines (Success) to be drawn LAST (Top layer)
+  // Sort edges: Red (Error) first so they draw behind, Black (Success) last so they draw on top.
   const sortedEdges = rawEdges.sort((a, b) => {
       const scoreA = a.data.isRedLine ? 0 : 1; 
       const scoreB = b.data.isRedLine ? 0 : 1;
