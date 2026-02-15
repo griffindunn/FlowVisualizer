@@ -18,15 +18,27 @@ export const transformWxccJson = (json) => {
   const processFlowScope = (flowData, diagramData, prefix = '', isEvent = false, startYOffset = 0) => {
     if (!flowData || !flowData.activities) return;
 
-    const { activities, links } = flowData;
+    const { activities, links } = flowData; // 'links' here is the global wiring
     const activityList = Object.values(activities);
+
+    // --- HELPER: Hybrid Link Finder ---
+    // Looks for links inside the node AND in the global list to ensure we find choices
+    const getLinksForActivity = (activity) => {
+        // 1. Internal Definition (Preferred for Labels)
+        const internal = activity.links || activity.outcomes || [];
+        
+        // 2. Global Wiring (Fallback if internal is missing/empty)
+        const globalMatches = (links || []).filter(l => l.sourceActivityId === activity.id);
+        
+        // If we have internal links, return them (they usually have better labels).
+        // If not, use the global wires.
+        return internal.length > 0 ? internal : globalMatches;
+    };
 
     // --- 1. NODES ---
     activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, diagramData);
-      
-      let x = 0;
-      let y = 0;
+      let x = 0, y = 0;
 
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
@@ -42,55 +54,51 @@ export const transformWxccJson = (json) => {
            y = row * 300;
         }
       }
-
-      y = y + startYOffset;
+      y += startYOffset;
       if (!isEvent && y > maxMainY) maxMainY = y;
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
       const config = getNodeConfig(rawType);
       const nodeType = config.nodeType || 'DefaultNode';
 
-      // --- EXTRACT NODE DETAILS (MENU/CASE) ---
+      // --- PARSE DETAILS ---
       let details = { ...activity.properties };
       
-      // We prioritize INTERNAL definition (activity.links/outcomes) for the port definitions
-      const nodeSpecificLinks = activity.links || activity.outcomes || [];
+      // Get all relevant links for this node
+      const nodeLinks = getLinksForActivity(activity);
 
       // LOGIC: Menu Node Choices
       if (nodeType === 'MenuNode') {
         const extractedChoices = {};
-        
-        // 1. Try Internal Links (The definitions)
-        nodeSpecificLinks.forEach(link => {
+        nodeLinks.forEach(link => {
+            // Priority: interactionCondition > name > conditionExpr
             const key = link.interactionCondition || link.name || link.conditionExpr;
-            // Label fallback: link.label -> link.name -> key
-            const label = link.label || link.name || key; 
             
-            // Filter system paths
-            const isSystem = ['error', 'timeout', 'invalid', 'failure', 'busy', 'no_answer', 'exception'].some(k => String(key).toLowerCase().includes(k));
+            // Fallback Label: Label > Name > Key
+            const label = link.label || link.name || key;
 
+            const isSystem = ['error', 'timeout', 'invalid', 'failure', 'busy', 'no_answer', 'exception'].some(k => String(key).toLowerCase().includes(k));
+            
             if (key && !isSystem) {
                 extractedChoices[key] = label;
             }
         });
-        
         details.choices = extractedChoices;
       }
 
       // LOGIC: Case Node Outcomes
       if (nodeType === 'CaseNode') {
         const extractedCases = {};
-        
-        nodeSpecificLinks.forEach(link => {
+        nodeLinks.forEach(link => {
             const key = link.interactionCondition || link.name || link.conditionExpr;
             const label = link.label || link.name || key;
             const isSystem = ['error', 'timeout', 'failure', 'default'].some(k => String(key).toLowerCase().includes(k));
 
+            // For Case nodes, "default" is a standard exit, not a case value
             if (key && !isSystem && key !== 'default') {
                 extractedCases[key] = label;
             }
         });
-        
         details.cases = extractedCases;
       }
 
@@ -111,8 +119,11 @@ export const transformWxccJson = (json) => {
     // --- 2. EDGES ---
     if (links) {
       links.forEach((link) => {
-        let sourceHandleId = link.conditionExpr || link.interactionCondition || link.name;
+        // We use the exact same logic to determine the Source Handle ID
+        // so the edge connects to the port we just created above.
+        let sourceHandleId = link.interactionCondition || link.name || link.conditionExpr;
         
+        // Normalize "Success" paths
         if (!sourceHandleId || sourceHandleId === 'true' || sourceHandleId === 'success') {
              sourceHandleId = 'default';
         }
@@ -123,8 +134,9 @@ export const transformWxccJson = (json) => {
         const isRedLine = isErrorPath || isTimeout;
         const color = isRedLine ? '#D32F2F' : '#555';
         
-        // Z-Index: High number to stay on top
-        const zIndex = isRedLine ? 1999 : 2000;
+        // Z-INDEX: 2000 for all edges to sit on top of nodes
+        // We lower red lines slightly (1999) so black lines draw over them if they overlap
+        const zIndex = isRedLine ? 1999 : 2000; 
 
         rawEdges.push({
           id: `${prefix}${link.id}`,
@@ -145,10 +157,16 @@ export const transformWxccJson = (json) => {
     }
   };
 
-  if (json.process) {
-    processFlowScope(json.process, json.diagram, '', false, 0);
+  // Process Main
+  // Handle structure: { flow: { process: ... } } OR { process: ... }
+  const rootProcess = json.flow ? json.flow.process : json.process;
+  const rootDiagram = json.flow ? json.flow.diagram : json.diagram;
+
+  if (rootProcess) {
+    processFlowScope(rootProcess, rootDiagram, '', false, 0);
   }
 
+  // Process Events
   let eventCursorY = maxMainY + 2000; 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
@@ -172,7 +190,7 @@ export const transformWxccJson = (json) => {
     });
   }
 
-  // Sort edges to manage layering order if CSS fails
+  // Sort edges so Red lines draw first (behind black lines)
   const sortedEdges = rawEdges.sort((a, b) => {
       const scoreA = a.data.isRedLine ? 0 : 1; 
       const scoreB = b.data.isRedLine ? 0 : 1;
