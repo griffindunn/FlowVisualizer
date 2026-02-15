@@ -13,13 +13,6 @@ const ParseNode = ({ data, selected }) => {
         <span className="exit-label">Success</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-
-      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
-
-      <div className="node-exit-row">
-        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
-        <Handle type="source" position={Position.Right} id="error" className="source" />
-      </div>
     </BaseNodeShell>
   );
 };
