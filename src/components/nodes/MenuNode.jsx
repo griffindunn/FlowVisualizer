@@ -3,7 +3,7 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const MenuNode = ({ data, selected }) => {
-  // data.details.choices is populated by the new transformWxccJson logic
+  // Now populated by the new processWxccJson logic
   const choices = data.details?.choices || {};
 
   return (
@@ -12,7 +12,6 @@ const MenuNode = ({ data, selected }) => {
         Choices
       </div>
 
-      {/* Dynamic Menu Choices */}
       {Object.entries(choices).map(([key, label]) => (
         <div key={key} className="node-exit-row">
           <div style={{ 
