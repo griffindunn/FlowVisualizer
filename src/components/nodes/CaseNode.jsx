@@ -13,6 +13,7 @@ const CaseNode = ({ data, selected }) => {
 
       {cases.map((c) => (
         <div key={c.id} className="node-exit-row">
+          {/* Label only */}
           <span className="exit-label" title={c.label}>
             {c.label}
           </span>
@@ -27,7 +28,6 @@ const CaseNode = ({ data, selected }) => {
         <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
 
-      {/* Added Error Output */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
         <Handle type="source" position={Position.Right} id="error" className="source" />
