@@ -1,39 +1,39 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const BusinessHoursNode = ({ data, selected }) => {
-  const schedule = data.details?.['businessHoursId:name'] || data.details?.businessHoursId || 'Static';
-
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', color: '#888', textTransform:'uppercase'}}>Schedule</div>
-         <div style={{fontSize: '11px', fontWeight:'bold', color: '#333', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-            {schedule}
-         </div>
+      <div style={{ padding: '8px 12px', fontSize: '11px', color: '#555' }}>
+        Check Schedule
       </div>
 
-      <div style={row.sectionTitle}>Status</div>
-      {[
-        { id: 'workingHours', label: 'Open' },
-        { id: 'holidays', label: 'Holiday' },
-        { id: 'override', label: 'Override' },
-        { id: 'default', label: 'Closed/Default' }
-      ].map(branch => (
-         <div key={branch.id} style={row.firstRowContainer}>
-           <div style={row.box}>{branch.label}</div>
-           <Handle type="source" position={Position.Right} id={branch.id} style={row.handleRight} />
-         </div>
-      ))}
-      
-      <div style={row.divider} />
-      <div style={row.errorContainer}>
-         <span style={row.errorLabel}>Undefined Error</span>
-         <Handle type="source" position={Position.Right} id="error" style={row.handleError} />
+      <div className="node-exit-row">
+        <span className="exit-label">Open (Working Hours)</span>
+        <Handle type="source" position={Position.Right} id="workingHours" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label">Closed (Default)</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label">Holiday</span>
+        <Handle type="source" position={Position.Right} id="holidays" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#E65100' }}>Override</span>
+        <Handle type="source" position={Position.Right} id="override" className="source" />
+      </div>
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
 };
-export default memo(BusinessHoursNode);
+
+export default BusinessHoursNode;
