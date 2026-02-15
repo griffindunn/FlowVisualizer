@@ -21,7 +21,7 @@ const CaseNode = ({ data, selected }) => {
       {/* Render based on Ordered Array */}
       {cases.map((c) => (
         <div key={c.id} className="node-exit-row">
-          {/* Badge Removed: Just show the label directly */}
+          {/* Label only (Badges removed) */}
           <span className="exit-label" title={c.label}>
             {c.label}
           </span>
@@ -32,9 +32,16 @@ const CaseNode = ({ data, selected }) => {
 
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
+      {/* Default Path */}
       <div className="node-exit-row">
         <span className="exit-label">Default</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
+      </div>
+
+      {/* Error Path */}
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
