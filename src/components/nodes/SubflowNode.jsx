@@ -1,28 +1,27 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const SubflowNode = ({ data, selected }) => {
-  const name = data.details?.subflowName || 'Unknown Subflow';
-
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', color: '#888', textTransform:'uppercase'}}>Flow Mapping</div>
-         <div style={{fontSize: '12px', fontWeight:'bold', color: '#7B1FA2'}}>{name}</div>
+      <div style={{ padding: '8px 12px', fontSize: '11px', color: '#005073', fontWeight: 'bold' }}>
+        {data.details?.subflowName || 'Subflow'}
       </div>
 
-      <div style={row.firstRowContainer}>
-         <span style={row.successLabel}>Success</span>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row">
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      <div style={row.divider} />
-      <div style={row.errorContainer}>
-         <span style={row.errorLabel}>Undefined Error</span>
-         <Handle type="source" position={Position.Right} id="error" style={row.handleError} />
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
 };
-export default memo(SubflowNode);
+
+export default SubflowNode;
