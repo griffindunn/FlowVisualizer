@@ -1,43 +1,57 @@
 /* src/index.css */
 
-/* 1. Force EXIT Handles (Source) Inside */
+body {
+  margin: 0;
+  font-family: "CiscoSans", "Helvetica Neue", Arial, sans-serif;
+  background-color: #f0f0f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- 1. EXIT HANDLES (Source) --- */
+/* Force the dot inside the node on the right */
 .react-flow__handle.source {
-  right: 12px !important; /* Positive = Inside the node */
+  right: 8px !important; /* Move inside */
   top: 50% !important;
+  transform: translate(0, -50%) !important; /* Center vertical */
   width: 10px;
   height: 10px;
-  background: #757575;
+  background: #555;
   border: 2px solid #fff;
   border-radius: 50%;
   z-index: 100;
-  transform: translate(50%, -50%); /* Center vertical */
 }
 
-/* 2. Force INPUT Handles (Target) Inside */
+/* Add breathing room between the text and the exit dot */
+/* This targets the flex container holding the label and the dot */
+.react-flow__node div[style*="justify-content: flex-end"] {
+  padding-right: 28px !important; /* Push text back to make room for dot */
+}
+
+/* --- 2. ENTRY HANDLES (Target) --- */
+/* Force the dot inside the node on the left, but close to the edge */
 .react-flow__handle.target {
-  left: 12px !important; /* Positive = Inside the node */
+  left: 6px !important; /* Inside, close to edge */
   width: 10px;
   height: 10px;
-  background: #757575;
+  background: #555;
   border: 2px solid #fff;
   z-index: 100;
 }
 
-/* 3. Text Spacing for Exits */
-/* This targets the text next to the exit dot */
-.react-flow__node div[style*="justify-content: flex-end"] {
-  padding-right: 28px !important; /* Make room for the dot inside */
+/* Prevent Header Title from overlapping the input dot */
+.react-flow__node div[style*="background:"] { 
+  /* This targets the header bar */
+  padding-left: 24px !important; /* Make room for the input dot */
 }
 
-/* 4. Global Font */
-body {
-  font-family: "CiscoSans", "Helvetica Neue", Arial, sans-serif;
-  margin: 0;
-  background: #f0f0f0;
-}
-
-/* 5. Edge Smoothing */
+/* --- 3. EDGE Z-INDEX --- */
+/* Ensure standard paths are thicker and smoother */
 .react-flow__edge-path {
-  stroke-width: 2px !important;
-  stroke: #888;
+  stroke-width: 2px;
+  stroke-linecap: round;
+}
+
+/* Optional: Highlight selected nodes nicely */
+.react-flow__node.selected {
+  box-shadow: 0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15) !important;
 }
