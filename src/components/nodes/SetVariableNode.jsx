@@ -3,34 +3,68 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const SetVariableNode = ({ data, selected }) => {
-  // data.details is typically an object like { varName: "value", var2: "value2" }
-  const variables = data.details || {};
+  const details = data.details || {};
+  
+  // 1. Identify Assignments
+  // Newer WxCC exports use 'setVariablesArray', older ones use top-level props.
+  let assignments = [];
+  if (details.setVariablesArray && Array.isArray(details.setVariablesArray) && details.setVariablesArray.length > 0) {
+    assignments = details.setVariablesArray;
+  } else if (details.srcVariable) {
+    // Fallback for single-variable config
+    assignments = [details];
+  }
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      {/* Variable List */}
       <div style={{ padding: '8px 12px' }}>
-        {Object.entries(variables).slice(0, 5).map(([key, val]) => (
-          <div key={key} style={{ fontSize: '11px', color: '#555', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            <span style={{ fontWeight: 'bold' }}>{key}</span> = {String(val)}
-          </div>
-        ))}
-        {Object.keys(variables).length > 5 && (
-           <div style={{ fontSize: '10px', color: '#999', marginTop: '4px' }}>
-             + {Object.keys(variables).length - 5} more
-           </div>
+        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#888', marginBottom: '6px', textTransform: 'uppercase' }}>
+          Assignments
+        </div>
+        
+        {/* 2. List Each Assignment */}
+        {assignments.map((item, index) => {
+            // Logic to find the value being set:
+            // Priority: expr (Logic) -> literal (Static) -> tgtVariable (Copy) -> 'null'
+            let val = item.expr || item.literal || item.tgtVariable || 'null';
+            
+            // Clean up common JSON noise if present
+            if (typeof val === 'string' && val.startsWith('{{') && val.endsWith('}}')) {
+                // Optional: Strip {{ }} for cleaner reading, or keep them. keeping them implies dynamic.
+            }
+
+            return (
+                <div key={index} style={{ 
+                    marginBottom: '4px', 
+                    fontSize: '10px', 
+                    fontFamily: 'Consolas, Monaco, monospace', 
+                    lineHeight: '1.4',
+                    borderBottom: index < assignments.length - 1 ? '1px dashed #eee' : 'none',
+                    paddingBottom: index < assignments.length - 1 ? '4px' : '0'
+                }}>
+                    <span style={{ color: '#005073', fontWeight: 'bold' }}>{item.srcVariable}</span>
+                    <span style={{ color: '#999', margin: '0 4px' }}>=</span>
+                    <span style={{ color: '#E65100', wordBreak: 'break-word' }}>{val}</span>
+                </div>
+            );
+        })}
+
+        {assignments.length === 0 && (
+            <div style={{ fontSize: '10px', color: '#bbb', fontStyle: 'italic' }}>
+                No variables configured
+            </div>
         )}
       </div>
 
-      <div className="node-exit-row" style={{ marginTop: '5px' }}>
+      {/* Success Output */}
+      <div className="node-exit-row" style={{ marginTop: '4px', borderTop: '1px solid #eee', paddingTop: '4px' }}>
         <span className="exit-label">Success</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
       
-      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
-
+      {/* Error Output */}
       <div className="node-exit-row">
-        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Undefined Error</span>
         <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
