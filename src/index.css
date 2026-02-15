@@ -7,37 +7,50 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- 1. HANDLE BASE STYLES (Dots) --- */
+/* --- CRITICAL: FORCE EDGES ABOVE NODES --- */
+/* This makes the lines draw ON TOP of the white node box */
+.react-flow__edges {
+  z-index: 5 !important;
+  pointer-events: none; /* Allows clicking nodes underneath the lines */
+}
+
+.react-flow__nodes {
+  z-index: 1 !important; 
+}
+
+/* Re-enable pointer events for edge interaction (like tooltips/clicks) */
+.react-flow__edge {
+  pointer-events: all; 
+}
+
+
+/* --- HANDLES (The Dots) --- */
 .react-flow__handle {
   width: 10px;
   height: 10px;
-  min-width: 10px;   /* Prevents stretching into ovals */
-  min-height: 10px;  /* Prevents stretching into ovals */
-  flex-shrink: 0;    /* Prevents being squashed by flex containers */
+  min-width: 10px;   /* Prevents squishing */
+  min-height: 10px;  /* Prevents squishing */
+  flex-shrink: 0;
   background: #555;
   border: 2px solid #fff;
   border-radius: 50%;
-  z-index: 100;
+  z-index: 100 !important; /* Always on top */
 }
 
-/* --- 2. EXIT HANDLES (Right Side) --- */
-/* We place these INSIDE the node as requested */
+/* EXIT HANDLES (Right) - Inside */
 .react-flow__handle.source {
   right: 12px !important; 
   top: 50% !important;
   transform: translate(0, -50%) !important;
 }
 
-/* --- 3. ENTRY HANDLES (Left Side) --- */
-/* We place these ON THE BORDER (-5px) so the arrow connects cleanly */
+/* ENTRY HANDLES (Left) - On Border */
 .react-flow__handle.target {
   left: -5px !important; 
-  top: 24px !important; /* Vertically centered in the 48px header */
+  top: 24px !important; /* Centers in Header */
 }
 
-/* --- 4. NODE CONTENT SPACING --- */
-
-/* The row containing the label and the exit dot */
+/* --- NODE CONTENT SPACING --- */
 .node-exit-row {
   display: flex;
   align-items: center;
@@ -45,31 +58,32 @@ body {
   height: 24px;
   position: relative;
   width: 100%;
-  padding-right: 32px; /* Creates space so text doesn't hit the dot */
+  
+  /* IMPORTANT: Push text left so it doesn't hit the internal dot */
+  padding-right: 32px; 
   box-sizing: border-box;
 }
 
-/* The label text inside the exit row */
 .exit-label {
-  font-size: 11px; /* Slightly larger for readability */
+  font-size: 11px;
   font-weight: 500;
   color: #444;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
-/* The Header Title - add padding so it doesn't hit the entry dot */
 .node-header-content {
-  padding-left: 12px; 
+  padding-left: 12px; /* Space for entry dot */
 }
 
-/* --- 5. EDGE STYLING --- */
 .react-flow__edge-path {
   stroke-width: 2px;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-/* Selected State */
 .react-flow__node.selected .node-container {
   box-shadow: 0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15);
 }
