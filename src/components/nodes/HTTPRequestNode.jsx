@@ -1,32 +1,34 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const HTTPRequestNode = ({ data, selected }) => {
-  const method = data.details?.httpRequestMethod || 'GET';
-  const url = data.details?.httpRequestUrl || '';
-
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '10px', fontWeight:'bold', color: '#555'}}>{method}</div>
-         <div style={{fontSize: '11px', color: '#005073', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth: '200px'}}>
-            {url}
+      <div style={{ padding: '8px 12px' }}>
+         <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#555' }}>{data.details?.method || 'GET'}</div>
+         <div style={{ fontSize: '10px', color: '#005073', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {data.details?.url || 'http://...'}
          </div>
       </div>
 
-      <div style={row.firstRowContainer}>
-         <Handle type="source" position={Position.Right} id="default" style={row.handleRight} />
+      <div className="node-exit-row">
+        <span className="exit-label">Success</span>
+        <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
-      <div style={row.divider} />
-      {['timeout', 'error'].map(key => (
-        <div key={key} style={row.errorContainer}>
-           <span style={row.errorLabel}>{key}</span>
-           <Handle type="source" position={Position.Right} id={key} style={row.handleError} />
-        </div>
-      ))}
+
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Timeout</span>
+        <Handle type="source" position={Position.Right} id="timeout" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#D32F2F' }}>Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
     </BaseNodeShell>
   );
 };
-export default memo(HTTPRequestNode);
+
+export default HTTPRequestNode;
