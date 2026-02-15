@@ -1,39 +1,51 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const ConditionNode = ({ data, selected }) => {
-  const desc = data.details?.description;
-  const expr = data.details?.expression || '';
-  const label = desc || expr || 'Condition';
+  const expression = data.details?.condition || 'Condition Expression';
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{padding: '0 10px 8px 10px'}}>
-         <div style={{fontSize: '11px', color: '#555', fontStyle: 'italic', maxHeight: '36px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>
-            {label}
-         </div>
+      {/* Condition Text */}
+      <div style={{ padding: '8px 12px 8px 12px' }}>
+        <div style={{ 
+          fontSize: '11px', 
+          color: '#555', 
+          fontStyle: 'italic',
+          background: '#f9f9f9',
+          padding: '4px',
+          borderRadius: '4px',
+          border: '1px solid #eee',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }}>
+          {expression}
+        </div>
       </div>
 
-      <div style={row.divider} />
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
-      <div style={row.container}>
-         <div style={row.box}>True</div>
-         <Handle type="source" position={Position.Right} id="true" style={row.handleRight} />
+      {/* True Path */}
+      <div className="node-exit-row">
+        <span className="exit-label">True</span>
+        <Handle type="source" position={Position.Right} id="true" className="source" />
       </div>
-      <div style={row.container}>
-         <div style={row.box}>False</div>
-         <Handle type="source" position={Position.Right} id="false" style={row.handleRight} />
-         <Handle type="source" position={Position.Right} id="default" style={{...row.handleRight, opacity: 0, pointerEvents: 'none'}} />
+
+      {/* False Path */}
+      <div className="node-exit-row">
+        <span className="exit-label">False</span>
+        <Handle type="source" position={Position.Right} id="false" className="source" />
       </div>
-      
-      <div style={row.divider} />
-      <div style={row.errorContainer}>
-         <span style={row.errorLabel}>Undefined Error</span>
-         <Handle type="source" position={Position.Right} id="error" style={row.handleError} />
+
+      {/* Error Path */}
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
       </div>
     </BaseNodeShell>
   );
 };
-export default memo(ConditionNode);
+
+export default ConditionNode;
