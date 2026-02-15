@@ -1,4 +1,3 @@
-// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
@@ -52,48 +51,62 @@ export const transformWxccJson = (json) => {
       let details = { ...activity.properties };
       const props = activity.properties || {};
 
-      // --- COMMON LOGIC: Extract "menuLinks" (Used by Menu AND Case nodes) ---
-      // We process this into an ordered Array: [{ id: "1", label: "Sales" }, ...]
-      const processMenuLinks = () => {
-          const extracted = [];
-          // 1. Try Parallel Arrays (The "Smoking Gun" Pattern)
-          // Note: Case nodes in your file use 'menuLinks' too!
-          const keys = props.menuLinks || [];
-          const labels = props["menuLinks:input"] || props.menuLinks_input || []; 
-
-          if (Array.isArray(keys) && keys.length > 0) {
-              keys.forEach((key, i) => {
-                  extracted.push({
-                      id: key,
-                      label: labels[i] || `Option ${key}`
-                  });
-              });
-          } else {
-              // 2. Fallback: Global Wires (if properties are empty)
-              const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
-              myLinks.forEach(link => {
-                  const key = link.interactionCondition || link.name;
-                  // Filter errors
-                  const isSystem = ['error', 'timeout', 'invalid', 'failure'].some(k => String(key).includes(k));
-                  if (key && !isSystem && key !== 'default') {
-                      extracted.push({
-                          id: key,
-                          label: link.label || link.displayName || key
-                      });
-                  }
-              });
-          }
-          return extracted;
-      };
-
-      // Apply to Menu Node
+      // MENU NODE LOGIC
       if (nodeType === 'MenuNode') {
-          details.choices = processMenuLinks();
+        const extractedChoices = [];
+        const keys = props.menuLinks || [];
+        const labels = props["menuLinks:input"] || props.menuLinks_input || []; 
+        
+        if (Array.isArray(keys) && keys.length > 0) {
+            keys.forEach((key, i) => {
+                extractedChoices.push({
+                    id: key,
+                    label: labels[i] || `Option ${key}`
+                });
+            });
+        } else {
+            const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
+            myLinks.forEach(link => {
+                const key = link.interactionCondition || link.name;
+                const isSystem = ['error', 'timeout', 'invalid', 'failure'].some(k => String(key).includes(k));
+                if (key && !isSystem) {
+                    extractedChoices.push({
+                        id: key,
+                        label: link.label || link.displayName || key
+                    });
+                }
+            });
+        }
+        details.choices = extractedChoices;
       }
 
-      // Apply to Case Node (Now uses same logic!)
+      // CASE NODE LOGIC
       if (nodeType === 'CaseNode') {
-          details.cases = processMenuLinks();
+        const extractedCases = [];
+        const keys = props.menuLinks || [];
+        const labels = props["menuLinks:input"] || props.menuLinks_input || []; 
+
+        if (Array.isArray(keys) && keys.length > 0) {
+            keys.forEach((key, i) => {
+                extractedCases.push({
+                    id: key,
+                    label: labels[i] || `Case ${key}`
+                });
+            });
+        } else {
+            const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
+            myLinks.forEach(link => {
+                const key = link.interactionCondition || link.name;
+                const isSystem = ['error', 'timeout', 'failure', 'default'].some(k => String(key).includes(k));
+                if (key && !isSystem && key !== 'default') {
+                    extractedCases.push({
+                        id: key,
+                        label: link.label || link.displayName || key
+                    });
+                }
+            });
+        }
+        details.cases = extractedCases;
       }
 
       nodes.push({
@@ -115,7 +128,7 @@ export const transformWxccJson = (json) => {
       links.forEach((link) => {
         let rawHandleId = link.interactionCondition || link.name || link.conditionExpr;
         
-        // --- HANDLE NORMALIZATION FIX ---
+        // --- HANDLE MAPPING ---
         const sourceNode = activities[link.sourceActivityId];
         const sourceNodeTypeString = sourceNode 
             ? (sourceNode.properties?.activityName || sourceNode.activityName || 'unknown') 
@@ -125,11 +138,19 @@ export const transformWxccJson = (json) => {
 
         let finalHandleId = 'default'; 
 
-        // Error detection
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
         const isTimeout = String(rawHandleId).toLowerCase().includes('timeout');
 
-        if (isErrorPath) {
+        // CONDITION NODE SPECIFIC LOGIC
+        if (componentType === 'ConditionNode') {
+             // WxCC uses "true"/"false" strings in conditionExpr
+             if (String(rawHandleId).toLowerCase() === 'true') finalHandleId = 'true';
+             else if (String(rawHandleId).toLowerCase() === 'false') finalHandleId = 'false';
+             else if (isErrorPath) finalHandleId = 'error';
+             else finalHandleId = 'default';
+        } 
+        // ERROR LOGIC
+        else if (isErrorPath) {
             if (String(rawHandleId).toLowerCase().includes('busy')) finalHandleId = 'busy';
             else if (String(rawHandleId).toLowerCase().includes('no_answer')) finalHandleId = 'no_answer';
             else if (String(rawHandleId).toLowerCase().includes('invalid')) finalHandleId = 'invalid';
@@ -140,13 +161,9 @@ export const transformWxccJson = (json) => {
             finalHandleId = 'timeout';
         } else {
             // HAPPY PATH LOGIC
-            // If it is a decision node (Menu/Case), use the specific key (1, 2, Test, Dev)
             if (componentType === 'MenuNode' || componentType === 'CaseNode') {
                 finalHandleId = rawHandleId; 
             } else {
-                // FORCE EVERYTHING ELSE TO DEFAULT
-                // This fixes the "Missing Lines" on Set Variable nodes.
-                // Even if the JSON link is named "Done" or "True", we force it to connect to 'default'.
                 finalHandleId = 'default';
             }
         }
