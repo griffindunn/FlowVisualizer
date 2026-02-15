@@ -13,13 +13,14 @@ const styles = {
       ? '0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15)' 
       : '0 1px 3px rgba(0,0,0,0.1)',
     fontFamily: '"CiscoSans", "Helvetica Neue", Arial, sans-serif',
-    overflow: 'visible', // CHANGED: Must be visible so the handle (dot) can stick out!
+    overflow: 'visible', // Critical: allows handles to be seen if they nudge out
     position: 'relative',
     border: '1px solid transparent',
   }),
   header: (config) => ({
     background: config.header,
-    padding: '12px 16px',
+    // Padding adjusted via CSS in index.css to avoid dot overlap
+    padding: '12px 16px', 
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
@@ -67,23 +68,16 @@ const styles = {
     minHeight: '40px',
     borderBottomLeftRadius: '8px',
     borderBottomRightRadius: '8px',
+    position: 'relative'
   },
   
-  // --- INPUT HANDLE (Left Side) ---
+  // --- INPUT HANDLE WRAPPER ---
+  // We place it absolutely to ensure it aligns with the header vertically
   inputHandleWrapper: { 
     position: 'absolute', 
-    top: '70px', 
+    top: '24px', // Vertically Center in the 48px Header
     left: 0, 
     zIndex: 50 
-  },
-  inputHandle: { 
-    // MOVED: -6px places it exactly on the border line
-    left: '-6px', 
-    width: '10px', 
-    height: '10px', 
-    background: '#555', 
-    border: '2px solid #fff', 
-    borderRadius: '50%' 
   }
 };
 
@@ -95,7 +89,15 @@ const BaseNodeShell = ({ data, selected, children, showInput = true }) => {
     <div style={styles.container(config, selected)}>
       {showInput && (
         <div style={styles.inputHandleWrapper}>
-           <Handle type="target" position={Position.Left} style={styles.inputHandle} />
+           {/* We use className="target" so index.css can target it.
+              Inline styles here are minimal/overridden.
+           */}
+           <Handle 
+             type="target" 
+             position={Position.Left} 
+             id="in"
+             style={{ background: '#555', border: '2px solid #fff' }}
+           />
         </div>
       )}
 
