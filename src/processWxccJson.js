@@ -20,12 +20,10 @@ export const transformWxccJson = (json) => {
     const { activities, links } = flowData;
     const activityList = Object.values(activities);
 
-    // --- 1. PROCESS NODES ---
+    // --- 1. NODES ---
     activityList.forEach((activity, index) => {
       const widget = getWidget(activity.id, diagramData);
-      
-      let x = 0;
-      let y = 0;
+      let x = 0, y = 0;
 
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
@@ -51,48 +49,45 @@ export const transformWxccJson = (json) => {
       let details = { ...activity.properties };
       const props = activity.properties || {};
 
-      // --- MENU & CASE EXTRACTION ---
-      const getChoices = (propKeys, propLabels) => {
-          const result = [];
+      // MENU & CASE: EXTRACT CHOICES FROM PROPERTIES
+      const extractChoices = (propKeys, propLabels) => {
+          const extracted = [];
           const keys = props[propKeys] || [];
           const labels = props[propLabels] || props[propLabels.replace(':', '_')] || [];
           
           if (Array.isArray(keys) && keys.length > 0) {
               keys.forEach((key, i) => {
-                  result.push({ id: key, label: labels[i] || key });
-              });
-          } else {
-              // Fallback: Check links
-              const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
-              myLinks.forEach(link => {
-                  const key = link.interactionCondition || link.name;
-                  const isSystem = ['error', 'timeout', 'invalid', 'failure'].some(k => String(key).includes(k));
-                  if (key && !isSystem && key !== 'default') {
-                      result.push({ id: key, label: link.label || link.displayName || key });
-                  }
+                  extracted.push({
+                      id: key,
+                      label: labels[i] || key // Use key if label is missing
+                  });
               });
           }
-          return result;
+          return extracted;
       };
 
       if (nodeType === 'MenuNode') {
-          details.choices = getChoices('menuLinks', 'menuLinks:input');
-      }
-      if (nodeType === 'CaseNode') {
-          // Check standard menuLinks first (common in new WxCC), then queueLinks (older)
-          let cases = getChoices('menuLinks', 'menuLinks:input');
-          if (cases.length === 0) cases = getChoices('queueLinks', 'queueLinks:input');
-          if (cases.length === 0) cases = getChoices('links', 'links:input'); // Generic fallback
-          details.cases = cases;
-      }
-      
-      // FIX FOR PLAY MESSAGE TTS
-      if (nodeType === 'PlayMessageNode' && !details.message) {
-          if (details.promptsTts && details.promptsTts.length > 0) {
-              details.message = details.promptsTts[0].value || details.promptsTts[0].name;
-          } else if (details.prompts && details.prompts.length > 0) {
-              details.message = details.prompts[0].value || details.prompts[0].name;
+          // If properties are empty, we might need a fallback, but usually 'menuLinks' is present
+          let choices = extractChoices('menuLinks', 'menuLinks:input');
+          if (choices.length === 0) {
+             // Fallback to links if properties missing (rare in new exports)
+             const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
+             myLinks.forEach(l => {
+                 const k = l.interactionCondition || l.name;
+                 if(k && !['error','timeout','invalid'].some(s=>String(k).includes(s))) {
+                     choices.push({id: k, label: l.label || l.displayName || k});
+                 }
+             });
           }
+          details.choices = choices;
+      }
+
+      if (nodeType === 'CaseNode') {
+          // Try 'menuLinks' first (common in Case nodes now), then 'queueLinks'
+          let cases = extractChoices('menuLinks', 'menuLinks:input');
+          if (cases.length === 0) cases = extractChoices('queueLinks', 'queueLinks:input');
+          
+          details.cases = cases;
       }
 
       nodes.push({
@@ -109,7 +104,7 @@ export const transformWxccJson = (json) => {
       });
     });
 
-    // --- 2. PROCESS EDGES ---
+    // --- 2. EDGES ---
     if (links) {
       links.forEach((link) => {
         let rawHandleId = link.interactionCondition || link.name || link.conditionExpr;
@@ -123,10 +118,39 @@ export const transformWxccJson = (json) => {
 
         let finalHandleId = 'default';
 
-        const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
+        const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
         const isTimeout = String(rawHandleId).toLowerCase().includes('timeout');
 
-        if (isErrorPath) {
+        // --- SPECIFIC NODE MAPPING LOGIC ---
+        
+        if (componentType === 'BusinessHoursNode') {
+            // Map Business Hours specific outputs
+            const lowerName = String(rawHandleId).toLowerCase();
+            const lowerLabel = String(link.label || '').toLowerCase();
+            
+            if (lowerName.includes('open') || lowerName.includes('working') || lowerLabel.includes('open')) {
+                finalHandleId = 'workingHours';
+            } else if (lowerName.includes('holiday') || lowerLabel.includes('holiday')) {
+                finalHandleId = 'holiday';
+            } else if (lowerName.includes('force') || lowerName.includes('override') || lowerLabel.includes('override')) {
+                finalHandleId = 'override';
+            } else if (isErrorPath && !lowerName.includes('false')) {
+                finalHandleId = 'error';
+            } else {
+                // Default catches "Closed", "False", or generic paths
+                finalHandleId = 'default'; 
+            }
+        } 
+        else if (componentType === 'ConditionNode') {
+            // Map True/False paths
+            const lower = String(rawHandleId).toLowerCase();
+            if (lower === 'true' || lower === '1') finalHandleId = 'true';
+            else if (lower === 'false' || lower === '0') finalHandleId = 'false';
+            else if (isErrorPath) finalHandleId = 'error';
+            else finalHandleId = 'default';
+        }
+        else if (isErrorPath) {
+            // Standard Errors
             if (String(rawHandleId).toLowerCase().includes('busy')) finalHandleId = 'busy';
             else if (String(rawHandleId).toLowerCase().includes('no_answer')) finalHandleId = 'no_answer';
             else if (String(rawHandleId).toLowerCase().includes('invalid')) finalHandleId = 'invalid';
@@ -136,26 +160,12 @@ export const transformWxccJson = (json) => {
         } else if (isTimeout) {
             finalHandleId = 'timeout';
         } else {
-            // --- SPECIFIC NODE MAPPING ---
+            // HAPPY PATHS
             if (componentType === 'MenuNode' || componentType === 'CaseNode') {
+                // Keep the specific digit/key
                 finalHandleId = rawHandleId; 
-            } 
-            else if (componentType === 'ConditionNode') {
-                // Condition nodes map 'true'/'false'
-                if (String(rawHandleId).toLowerCase() === 'true') finalHandleId = 'true';
-                else if (String(rawHandleId).toLowerCase() === 'false') finalHandleId = 'false';
-                else finalHandleId = 'default';
-            }
-            else if (componentType === 'BusinessHoursNode') {
-                // Business Hours Mapping
-                const lower = String(rawHandleId).toLowerCase();
-                if (lower.includes('working') || lower.includes('open')) finalHandleId = 'workingHours';
-                else if (lower.includes('holiday')) finalHandleId = 'holiday';
-                else if (lower.includes('force') || lower.includes('override')) finalHandleId = 'override';
-                else finalHandleId = 'default'; // 'default' is usually "Closed"
-            }
-            else {
-                // Force everything else (SetVar, PlayMsg, etc) to 'default'
+            } else {
+                // Force all simple nodes (SetVar, PlayMsg, etc.) to 'default'
                 finalHandleId = 'default';
             }
         }
