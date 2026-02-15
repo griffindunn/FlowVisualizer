@@ -1,36 +1,64 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
-import { nodeRowStyles as row } from './nodeRowStyles';
 
 const MenuNode = ({ data, selected }) => {
-  const { details } = data;
-  const links = details?.menuLinks?.map((key, idx) => ({
-      id: key,
-      label: details['menuLinks:input']?.[idx] || `Option ${key}`
-  })) || [];
+  // Extract choices from the node properties
+  // Data structure: data.details.choices usually contains the links
+  const choices = data.details?.choices || {};
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      {links.length > 0 && <div style={row.sectionTitle}>Choices</div>}
-      
-      {links.map((link, index) => (
-        // Conditional Style: If it's the first item (index 0), use the aligned container
-        <div key={link.id} style={index === 0 ? row.firstRowContainer : row.container}>
-          <div style={row.pill}>{link.id}</div>
-          <div style={row.box} title={link.label}>{link.label}</div>
-          <Handle type="source" position={Position.Right} id={link.id} style={row.handleRight} />
+      <div style={{ padding: '8px 0 8px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
+        Choices
+      </div>
+
+      {/* Render Dynamic Menu Choices */}
+      {Object.entries(choices).map(([key, label]) => (
+        <div key={key} className="node-exit-row">
+          {/* Badge for the digit */}
+          <div style={{ 
+            background: '#fff', 
+            border: '1px solid #ccc', 
+            borderRadius: '12px', 
+            padding: '0 6px', 
+            fontSize: '10px', 
+            fontWeight: 'bold', 
+            color: '#555', 
+            marginRight: '8px',
+            minWidth: '15px',
+            textAlign: 'center'
+          }}>
+            {key}
+          </div>
+          <span className="exit-label" title={label}>{label}</span>
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id={key} 
+            className="source"
+          />
         </div>
       ))}
 
-      <div style={row.divider} />
-      {['timeout', 'invalid', 'error'].map(key => (
-        <div key={key} style={row.errorContainer}>
-           <span style={row.errorLabel}>{key}</span>
-           <Handle type="source" position={Position.Right} id={key} style={row.handleError} />
-        </div>
-      ))}
+      {/* Separator */}
+      <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
+
+      {/* Standard Menu Errors */}
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>No-Input Timeout</span>
+        <Handle type="source" position={Position.Right} id="timeout" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Unmatched Entry</span>
+        <Handle type="source" position={Position.Right} id="invalid" className="source" />
+      </div>
+      <div className="node-exit-row">
+        <span className="exit-label" style={{ color: '#999' }}>Undefined Error</span>
+        <Handle type="source" position={Position.Right} id="error" className="source" />
+      </div>
     </BaseNodeShell>
   );
 };
-export default memo(MenuNode);
+
+export default MenuNode;
