@@ -48,7 +48,7 @@ export const transformWxccJson = (json) => {
       // Determine Node Type
       let nodeType = config.nodeType || 'DefaultNode';
       
-      // --- MANUAL OVERRIDE for SetCallerID ---
+      // --- MANUAL OVERRIDES ---
       if (rawType === 'SetCallerID') {
           nodeType = 'SetCallerIDNode';
       }
@@ -133,9 +133,10 @@ export const transformWxccJson = (json) => {
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
         const isTimeout = String(rawHandleId).toLowerCase().includes('timeout');
 
-        // --- PREVENT EDGES FROM SET CALLER ID ---
+        // Special handling to prevent edges from appearing on SetCallerID nodes
         if (sourceNodeTypeString === 'SetCallerID') {
-            return; // Skip edge creation for this node
+            // Do not create edges for this node type
+            return; 
         }
 
         if (componentType === 'BusinessHoursNode') {
