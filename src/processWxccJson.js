@@ -1,4 +1,3 @@
-// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
@@ -11,6 +10,7 @@ export const transformWxccJson = (json) => {
   let rawEdges = []; 
   let maxMainY = 0;
 
+  // Helper: Find widget layout data
   const getWidget = (id, currentDiagram) => {
     return currentDiagram?.widgets?.[id];
   };
@@ -23,12 +23,8 @@ export const transformWxccJson = (json) => {
 
     // --- Helper: Get Internal Links for Menu/Case Data ---
     const getLinksForActivity = (activity) => {
-        // We prefer the internal 'links' array as it contains the mapping logic (e.g. 1 -> Sales)
-        // If missing, we fallback to the global link list, but that lacks the '1=' logic usually.
         const internal = activity.links || activity.outcomes || [];
         if (internal.length > 0) return internal;
-        
-        // Fallback: Find wires connected to this node in the global scope
         return (links || []).filter(l => l.sourceActivityId === activity.id);
     };
 
@@ -39,6 +35,7 @@ export const transformWxccJson = (json) => {
       let x = 0;
       let y = 0;
 
+      // Coordinate Logic
       if (widget?.point) {
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
@@ -69,9 +66,11 @@ export const transformWxccJson = (json) => {
       if (nodeType === 'MenuNode') {
         const extractedChoices = {};
         nodeLinks.forEach(link => {
-            const key = link.interactionCondition || link.name || link.conditionExpr;
-            // Improved Label Search: displayName -> label -> description -> name -> key
-            const label = link.displayName || link.label || link.description || link.name || key; 
+            const key = link.interactionCondition || link.conditionExpr || link.name;
+            
+            // PRIORITY FIX: Check 'name' BEFORE 'label'. 
+            // 'label' is often the digit ("1"), 'name' is the user text ("Sales").
+            const label = link.displayName || link.name || link.label || link.description || key;
             
             const isSystem = ['error', 'timeout', 'invalid', 'failure', 'busy', 'no_answer', 'exception'].some(k => String(key).toLowerCase().includes(k));
             
@@ -86,8 +85,9 @@ export const transformWxccJson = (json) => {
       if (nodeType === 'CaseNode') {
         const extractedCases = {};
         nodeLinks.forEach(link => {
-            const key = link.interactionCondition || link.name || link.conditionExpr;
-            const label = link.displayName || link.label || link.description || link.name || key;
+            const key = link.interactionCondition || link.conditionExpr || link.name;
+            // PRIORITY FIX: Check 'name' BEFORE 'label'
+            const label = link.displayName || link.name || link.label || link.description || key;
             
             const isSystem = ['error', 'timeout', 'failure', 'default'].some(k => String(key).toLowerCase().includes(k));
 
@@ -115,44 +115,44 @@ export const transformWxccJson = (json) => {
     // --- 2. EDGES ---
     if (links) {
       links.forEach((link) => {
-        // Determine the "Raw" handle ID from the link definition
         let rawHandleId = link.interactionCondition || link.name || link.conditionExpr;
         
-        // --- NORMALIZATION LOGIC ---
-        // We need to map the JSON link name to the specific <Handle id="..."> in our React components.
-        // If we don't match exactly, the line disappears.
+        // --- HANDLE NORMALIZATION ---
         
+        // 1. Identify Source Node Type to decide connection logic
         const sourceNode = activities[link.sourceActivityId];
-        const sourceNodeType = sourceNode ? (sourceNode.properties?.activityName || sourceNode.activityName) : 'unknown';
-        const config = getNodeConfig(sourceNodeType);
+        // Safely get the type string (handle missing props)
+        const sourceNodeTypeString = sourceNode 
+            ? (sourceNode.properties?.activityName || sourceNode.activityName || 'unknown') 
+            : 'unknown';
+            
+        const config = getNodeConfig(sourceNodeTypeString);
         const componentType = config.nodeType;
 
-        let finalHandleId = 'default'; // Default to success path
+        let finalHandleId = 'default'; 
 
-        // Check if it is a known error path
+        // 2. Identify Edge Type (Error vs Success)
         const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].some(k => String(rawHandleId).toLowerCase().includes(k));
         const isTimeout = String(rawHandleId).toLowerCase().includes('timeout');
 
+        // 3. Assign Final ID
         if (isErrorPath) {
-            // Map specific errors to their handle IDs (e.g. 'busy' -> 'busy', 'error' -> 'error')
-            // We strip extra text to match the simple IDs in our components
             if (String(rawHandleId).toLowerCase().includes('busy')) finalHandleId = 'busy';
             else if (String(rawHandleId).toLowerCase().includes('no_answer')) finalHandleId = 'no_answer';
             else if (String(rawHandleId).toLowerCase().includes('invalid')) finalHandleId = 'invalid';
             else if (String(rawHandleId).toLowerCase().includes('insufficient')) finalHandleId = 'insufficient_data';
             else if (String(rawHandleId).toLowerCase().includes('failure')) finalHandleId = 'failure';
-            else finalHandleId = 'error'; // Catch-all for generic errors
+            else finalHandleId = 'error'; 
         } else if (isTimeout) {
             finalHandleId = 'timeout';
         } else {
             // HAPPY PATH LOGIC
-            // If it's a Menu or Case, we MUST use the specific key (e.g., "1", "Sales")
             if (componentType === 'MenuNode' || componentType === 'CaseNode') {
+                // For Menu/Case, we MUST match the specific key (e.g. "1")
                 finalHandleId = rawHandleId; 
-            } 
-            // For EVERYTHING ELSE (SetVariable, PlayMessage, etc.), force to 'default'
-            // This fixes the "Missing Line" issue where JSON says "Done" but Node expects "default"
-            else {
+            } else {
+                // For SetVariable, PlayMessage, etc., force to 'default'
+                // This connects "Done", "Next", "True", "Success" all to the main dot.
                 finalHandleId = 'default';
             }
         }
