@@ -32,7 +32,6 @@ export const transformWxccJson = (json) => {
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // Fallback Layout
         if (isEvent) {
            x = (index % 2 === 0) ? 0 : 400; 
            y = index * 250;
@@ -51,41 +50,47 @@ export const transformWxccJson = (json) => {
       const config = getNodeConfig(rawType);
       const nodeType = config.nodeType || 'DefaultNode';
 
-      // --- CRITICAL FIX: FIND OUTGOING LINKS ---
-      // We look through the GLOBAL 'links' array to find ones coming FROM this activity
-      const myLinks = (links || []).filter(l => l.sourceActivityId === activity.id);
-
+      // --- EXTRACT NODE DETAILS (MENU/CASE) ---
       let details = { ...activity.properties };
+      
+      // We prioritize INTERNAL definition (activity.links/outcomes) for the port definitions
+      const nodeSpecificLinks = activity.links || activity.outcomes || [];
 
       // LOGIC: Menu Node Choices
       if (nodeType === 'MenuNode') {
         const extractedChoices = {};
-        myLinks.forEach(link => {
-            // Exclude standard system events from the "Choices" list
-            const key = link.interactionCondition || link.name;
-            const isSystemPath = ['error', 'timeout', 'invalid', 'failure', 'insufficient_data', 'busy', 'no_answer', 'exception'].includes(key);
+        
+        // 1. Try Internal Links (The definitions)
+        nodeSpecificLinks.forEach(link => {
+            const key = link.interactionCondition || link.name || link.conditionExpr;
+            // Label fallback: link.label -> link.name -> key
+            const label = link.label || link.name || key; 
             
-            if (key && !isSystemPath) {
-                // Use label if available, otherwise fallback to the key (digit)
-                extractedChoices[key] = link.label || `Option ${key}`;
+            // Filter system paths
+            const isSystem = ['error', 'timeout', 'invalid', 'failure', 'busy', 'no_answer', 'exception'].some(k => String(key).toLowerCase().includes(k));
+
+            if (key && !isSystem) {
+                extractedChoices[key] = label;
             }
         });
+        
         details.choices = extractedChoices;
       }
 
       // LOGIC: Case Node Outcomes
       if (nodeType === 'CaseNode') {
         const extractedCases = {};
-        myLinks.forEach(link => {
-            const key = link.interactionCondition || link.name;
-            // Case nodes usually rely on the 'default' path as the fallback, so we treat 'default' as a case too if labeled
-            // But we filter strict errors.
-            const isSystemPath = ['error', 'timeout', 'failure'].includes(key);
+        
+        nodeSpecificLinks.forEach(link => {
+            const key = link.interactionCondition || link.name || link.conditionExpr;
+            const label = link.label || link.name || key;
+            const isSystem = ['error', 'timeout', 'failure', 'default'].some(k => String(key).toLowerCase().includes(k));
 
-            if (key && !isSystemPath && key !== 'default') {
-                extractedCases[key] = link.label || key;
+            if (key && !isSystem && key !== 'default') {
+                extractedCases[key] = label;
             }
         });
+        
         details.cases = extractedCases;
       }
 
@@ -106,20 +111,20 @@ export const transformWxccJson = (json) => {
     // --- 2. EDGES ---
     if (links) {
       links.forEach((link) => {
-        let sourceHandleId = link.conditionExpr;
-        // Normalize handle IDs
-        if (!sourceHandleId && link.interactionCondition) sourceHandleId = link.interactionCondition;
-        if (!sourceHandleId && link.name) sourceHandleId = link.name;
-
-        if (!sourceHandleId || sourceHandleId === '' || sourceHandleId === 'true' || sourceHandleId === 'out' || sourceHandleId === 'success') {
+        let sourceHandleId = link.conditionExpr || link.interactionCondition || link.name;
+        
+        if (!sourceHandleId || sourceHandleId === 'true' || sourceHandleId === 'success') {
              sourceHandleId = 'default';
         }
 
-        const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].includes(sourceHandleId);
-        const isTimeout = sourceHandleId === 'timeout'; 
+        const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].some(k => String(sourceHandleId).toLowerCase().includes(k));
+        const isTimeout = String(sourceHandleId).toLowerCase().includes('timeout');
         
         const isRedLine = isErrorPath || isTimeout;
         const color = isRedLine ? '#D32F2F' : '#555';
+        
+        // Z-Index: High number to stay on top
+        const zIndex = isRedLine ? 1999 : 2000;
 
         rawEdges.push({
           id: `${prefix}${link.id}`,
@@ -127,6 +132,7 @@ export const transformWxccJson = (json) => {
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE, 
+          zIndex: zIndex, 
           markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: color },
           style: { stroke: color, strokeWidth: 2 }, 
           data: { 
@@ -166,7 +172,7 @@ export const transformWxccJson = (json) => {
     });
   }
 
-  // Sort: Red behind Black
+  // Sort edges to manage layering order if CSS fails
   const sortedEdges = rawEdges.sort((a, b) => {
       const scoreA = a.data.isRedLine ? 0 : 1; 
       const scoreB = b.data.isRedLine ? 0 : 1;
