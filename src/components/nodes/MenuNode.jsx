@@ -3,20 +3,18 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const MenuNode = ({ data, selected }) => {
-  // Extract choices from the node properties
-  // Data structure: data.details.choices usually contains the links
+  // data.details.choices is populated by the new transformWxccJson logic
   const choices = data.details?.choices || {};
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{ padding: '8px 0 8px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
+      <div style={{ padding: '8px 0 4px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
         Choices
       </div>
 
-      {/* Render Dynamic Menu Choices */}
+      {/* Dynamic Menu Choices */}
       {Object.entries(choices).map(([key, label]) => (
         <div key={key} className="node-exit-row">
-          {/* Badge for the digit */}
           <div style={{ 
             background: '#fff', 
             border: '1px solid #ccc', 
@@ -41,10 +39,8 @@ const MenuNode = ({ data, selected }) => {
         </div>
       ))}
 
-      {/* Separator */}
       <div style={{ height: '1px', background: '#eee', margin: '6px 0' }} />
 
-      {/* Standard Menu Errors */}
       <div className="node-exit-row">
         <span className="exit-label" style={{ color: '#999' }}>No-Input Timeout</span>
         <Handle type="source" position={Position.Right} id="timeout" className="source" />
