@@ -3,32 +3,29 @@ import { Handle, Position } from 'reactflow';
 import BaseNodeShell from './BaseNodeShell';
 
 const CaseNode = ({ data, selected }) => {
-  // Now we expect an Array: [{ id: "1", label: "Test" }, ...]
+  // Array of cases: [{ id: "0", label: "Test" }, { id: "1", label: "Dev" }]
   const cases = data.details?.cases || [];
 
   return (
     <BaseNodeShell data={data} selected={selected}>
-       <div style={{ padding: '8px 0 4px 12px', fontSize: '10px', fontWeight: 'bold', color: '#aaa', textTransform: 'uppercase' }}>
+       <div style={{ 
+         padding: '8px 0 4px 12px', 
+         fontSize: '10px', 
+         fontWeight: 'bold', 
+         color: '#aaa', 
+         textTransform: 'uppercase' 
+       }}>
         Cases
       </div>
 
       {/* Render based on Ordered Array */}
       {cases.map((c) => (
         <div key={c.id} className="node-exit-row">
-           <div style={{ 
-            background: '#fff', 
-            border: '1px solid #ccc', 
-            borderRadius: '4px', 
-            padding: '0 4px', 
-            fontSize: '10px', 
-            color: '#555', 
-            marginRight: '8px'
-          }}>
-            {c.id}
-          </div>
+          {/* Badge Removed: Just show the label directly */}
           <span className="exit-label" title={c.label}>
             {c.label}
           </span>
+
           <Handle type="source" position={Position.Right} id={c.id} className="source" />
         </div>
       ))}
