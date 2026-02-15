@@ -6,58 +6,62 @@ const SetVariableNode = ({ data, selected }) => {
   const details = data.details || {};
   
   // 1. Identify Assignments
-  // Newer WxCC exports use 'setVariablesArray', older ones use top-level props.
   let assignments = [];
   if (details.setVariablesArray && Array.isArray(details.setVariablesArray) && details.setVariablesArray.length > 0) {
     assignments = details.setVariablesArray;
   } else if (details.srcVariable) {
-    // Fallback for single-variable config
     assignments = [details];
   }
 
+  // Helper to truncate long values
+  const truncate = (str, n = 25) => {
+    if (!str) return '';
+    const s = String(str);
+    return s.length > n ? s.substr(0, n - 1) + '...' : s;
+  };
+
   return (
     <BaseNodeShell data={data} selected={selected}>
-      <div style={{ padding: '8px 12px' }}>
-        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#888', marginBottom: '6px', textTransform: 'uppercase' }}>
+      <div style={{ padding: '6px 12px 4px 12px' }}>
+        <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#aaa', marginBottom: '4px', textTransform: 'uppercase' }}>
           Assignments
         </div>
         
-        {/* 2. List Each Assignment */}
+        {/* 2. List Each Assignment (Compact Mode) */}
         {assignments.map((item, index) => {
-            // Logic to find the value being set:
-            // Priority: expr (Logic) -> literal (Static) -> tgtVariable (Copy) -> 'null'
-            let val = item.expr || item.literal || item.tgtVariable || 'null';
-            
-            // Clean up common JSON noise if present
-            if (typeof val === 'string' && val.startsWith('{{') && val.endsWith('}}')) {
-                // Optional: Strip {{ }} for cleaner reading, or keep them. keeping them implies dynamic.
-            }
+            // Find value
+            let fullVal = item.expr || item.literal || item.tgtVariable || 'null';
+            let displayVal = truncate(fullVal);
 
             return (
-                <div key={index} style={{ 
-                    marginBottom: '4px', 
-                    fontSize: '10px', 
-                    fontFamily: 'Consolas, Monaco, monospace', 
-                    lineHeight: '1.4',
-                    borderBottom: index < assignments.length - 1 ? '1px dashed #eee' : 'none',
-                    paddingBottom: index < assignments.length - 1 ? '4px' : '0'
-                }}>
+                <div key={index} 
+                     style={{ 
+                        marginBottom: '2px', 
+                        fontSize: '10px', 
+                        fontFamily: 'Consolas, Monaco, monospace', 
+                        lineHeight: '1.2',
+                        whiteSpace: 'nowrap',       // Force single line
+                        overflow: 'hidden',         // Hide overflow
+                        textOverflow: 'ellipsis'    // Add ... if container shrinks
+                     }}
+                     title={`${item.srcVariable} = ${fullVal}`} // Hover to see full value
+                >
                     <span style={{ color: '#005073', fontWeight: 'bold' }}>{item.srcVariable}</span>
-                    <span style={{ color: '#999', margin: '0 4px' }}>=</span>
-                    <span style={{ color: '#E65100', wordBreak: 'break-word' }}>{val}</span>
+                    <span style={{ color: '#999', margin: '0 3px' }}>=</span>
+                    <span style={{ color: '#E65100' }}>{displayVal}</span>
                 </div>
             );
         })}
 
         {assignments.length === 0 && (
             <div style={{ fontSize: '10px', color: '#bbb', fontStyle: 'italic' }}>
-                No variables configured
+                No variables set
             </div>
         )}
       </div>
 
       {/* Success Output */}
-      <div className="node-exit-row" style={{ marginTop: '4px', borderTop: '1px solid #eee', paddingTop: '4px' }}>
+      <div className="node-exit-row" style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #eee' }}>
         <span className="exit-label">Success</span>
         <Handle type="source" position={Position.Right} id="default" className="source" />
       </div>
