@@ -1,3 +1,4 @@
+// src/processWxccJson.js
 import { MarkerType } from 'reactflow';
 import { getNodeConfig } from './wxccConfig';
 
@@ -8,12 +9,8 @@ const SPACING_FACTOR_Y = 2.2;
 export const transformWxccJson = (json) => {
   const nodes = [];
   const edges = [];
-  
-  // Track max Y of main flow to know where to safely push events
   let maxMainY = 0;
 
-  // Helper to safely extract widgets
-  // We now pass the specific diagram for the current flow scope
   const getWidget = (id, currentDiagram) => {
     return currentDiagram?.widgets?.[id];
   };
@@ -22,34 +19,30 @@ export const transformWxccJson = (json) => {
     if (!flowData || !flowData.activities) return;
 
     const { activities, links } = flowData;
-    
-    // Sort activities to keep consistent order if fallback is needed
     const activityList = Object.values(activities);
 
     activityList.forEach((activity, index) => {
-      // Look for the widget in the specific diagram passed for this scope
       const widget = getWidget(activity.id, diagramData);
       
       let x = 0;
       let y = 0;
 
       if (widget?.point) {
-        // FOUND COORDINATES (Standard Case)
         x = widget.point.x * SPACING_FACTOR_X;
         y = widget.point.y * SPACING_FACTOR_Y;
       } else {
-        // FALLBACK (Missing Coordinates)
-        // If we still can't find coords, use a simple grid
-        const col = index % 8;
-        const row = Math.floor(index / 8);
-        x = col * 400; 
-        y = row * 250;
+        if (isEvent) {
+          x = (index % 2 === 0) ? 0 : 400; 
+          y = index * 250;
+        } else {
+          const col = index % 5;
+          const row = Math.floor(index / 5);
+          x = col * 450;
+          y = row * 300;
+        }
       }
 
-      // Apply Vertical Offset (Separates Events from Main Flow visually)
       y = y + startYOffset;
-
-      // Track bottom of main flow so we know where to start events
       if (!isEvent && y > maxMainY) maxMainY = y;
 
       const rawType = activity.properties?.activityName || activity.activityName || 'unknown';
@@ -77,8 +70,23 @@ export const transformWxccJson = (json) => {
              sourceHandleId = 'default';
         }
 
-        let isErrorPath = ['error', 'timeout', 'invalid', 'false', 'failure', 'insufficient_data', 'busy', 'no_answer'].includes(sourceHandleId);
-        if (sourceHandleId === 'default') isErrorPath = false;
+        // Detect Error Paths
+        // Note: We deliberately exclude 'timeout' if it's the specific "no-input" type, 
+        // but typically 'timeout' is considered an error path in visualizers. 
+        // User asked to NOT hide "no-input timeout". 
+        // We will mark them as "red" in color, but we will add a data flag 'isHideableError' 
+        // so the UI knows which ones to toggle.
+        
+        const isErrorPath = ['error', 'failure', 'invalid', 'false', 'insufficient_data', 'busy', 'no_answer', 'exception'].includes(sourceHandleId);
+        const isTimeout = sourceHandleId === 'timeout'; 
+
+        // Visual Color Logic
+        // Timeout is usually red too, but we separate the Z-Index logic
+        const isRedLine = isErrorPath || isTimeout;
+        const color = isRedLine ? '#D32F2F' : '#555';
+
+        // Z-INDEX LOGIC: Red lines (0) below Black lines (1)
+        const zIndex = isRedLine ? 0 : 1;
 
         edges.push({
           id: `${prefix}${link.id}`,
@@ -86,28 +94,28 @@ export const transformWxccJson = (json) => {
           target: `${prefix}${link.targetActivityId}`,
           sourceHandle: sourceHandleId, 
           type: EDGE_TYPE, 
-          zIndex: 20, 
-          markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: isErrorPath ? '#D32F2F' : '#555' },
-          style: { stroke: isErrorPath ? '#D32F2F' : '#555', strokeWidth: 2 }, 
-          data: { isEventEdge: isEvent }
+          zIndex: zIndex, // <-- Controlled Z-Index
+          markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: color },
+          style: { stroke: color, strokeWidth: 2 }, 
+          data: { 
+            isEventEdge: isEvent,
+            isError: isRedLine,
+            // Logic for the Toggle: User wants to hide errors, but keep 'timeout' visible.
+            isHideable: isErrorPath && !isTimeout // Hide 'error', keep 'timeout'
+          }
         });
       });
     }
   };
 
-  // 1. Process Main Flow
-  // Pass json.process (Logic) AND json.diagram (Layout)
   if (json.process) {
     processFlowScope(json.process, json.diagram, '', false, 0);
   }
 
-  // 2. Process Event Flows
-  // Start well below the main flow
-  let eventCursorY = maxMainY + 1500; 
+  let eventCursorY = maxMainY + 2000; 
 
   if (json.eventFlows && json.eventFlows.eventsMap) {
     Object.entries(json.eventFlows.eventsMap).forEach(([eventName, eventData]) => {
-      // Add Header Node
       nodes.push({
         id: `header-${eventName}`,
         type: 'groupHeader',
@@ -117,26 +125,19 @@ export const transformWxccJson = (json) => {
       });
 
       if (eventData.process) {
-        // CRITICAL FIX: Pass eventData.diagram explicitly here.
-        // Previously it was trying to find .diagram inside .process or using global diagram.
         processFlowScope(eventData.process, eventData.diagram, `${eventName}-`, true, eventCursorY);
       }
       
-      // Advance cursor for next event block
-      // Calculate approximate height of this block to push the next one down
       let blockHeight = 500;
       if (eventData.diagram && eventData.diagram.widgets) {
-         // Find max Y in this specific event diagram to accurately space the next one
          const yValues = Object.values(eventData.diagram.widgets)
              .map(w => w.point?.y || 0)
              .filter(y => !isNaN(y));
-         
          if (yValues.length > 0) {
              const maxY = Math.max(...yValues);
              blockHeight = (maxY * SPACING_FACTOR_Y) + 500;
          }
       }
-      
       eventCursorY += blockHeight; 
     });
   }
