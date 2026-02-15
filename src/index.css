@@ -1,5 +1,4 @@
 /* src/index.css */
-
 body {
   margin: 0;
   font-family: "CiscoSans", "Helvetica Neue", Arial, sans-serif;
@@ -7,28 +6,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- LAYER ORDERING --- */
-/* Force edges (lines) to render on top of nodes */
+/* --- FORCE LINES ON TOP --- */
 .react-flow__edges {
   z-index: 2000 !important;
-  pointer-events: none; /* Allow clicks to pass through lines to nodes below */
+  pointer-events: none; 
+}
+.react-flow__edge {
+  pointer-events: all; 
 }
 
-/* Re-enable pointer events on the path itself so you can hover/click lines */
-.react-flow__edge-path {
-  pointer-events: stroke;
-  stroke-width: 2px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Keep nodes below edges but interactive */
-.react-flow__nodes {
-  z-index: 10 !important; 
-}
-
-
-/* --- HANDLES (The Connection Dots) --- */
+/* --- HANDLES --- */
 .react-flow__handle {
   width: 10px;
   height: 10px;
@@ -38,23 +25,21 @@ body {
   background: #555;
   border: 2px solid #fff;
   border-radius: 50%;
-  z-index: 2001 !important; /* Dots must be above both nodes and lines */
+  z-index: 2001 !important; 
 }
 
-/* EXIT DOTS (Right) - Inside node */
 .react-flow__handle.source {
   right: 12px !important; 
   top: 50% !important;
   transform: translate(0, -50%) !important;
 }
 
-/* ENTRY DOTS (Left) - On the border border */
 .react-flow__handle.target {
   left: -5px !important; 
-  top: 24px !important; /* Vertical center of header */
+  top: 24px !important;
 }
 
-/* --- ROW SPACING --- */
+/* --- SPACING --- */
 .node-exit-row {
   display: flex;
   align-items: center;
@@ -62,7 +47,7 @@ body {
   height: 24px;
   position: relative;
   width: 100%;
-  padding-right: 32px; /* Pad text so it doesn't hit the dot */
+  padding-right: 32px;
   box-sizing: border-box;
 }
 
@@ -71,16 +56,17 @@ body {
   font-weight: 500;
   color: #444;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
 }
 
 .node-header-content {
-  padding-left: 12px; /* Space for input dot */
+  padding-left: 12px;
 }
 
-/* Selected Node Highlight */
+.react-flow__edge-path {
+  stroke-width: 2px;
+  stroke-linecap: round;
+}
+
 .react-flow__node.selected .node-container {
   box-shadow: 0 0 0 2px #007AA3, 0 4px 12px rgba(0,0,0,0.15);
 }
