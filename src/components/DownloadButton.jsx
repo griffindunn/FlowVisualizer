@@ -6,65 +6,77 @@ import { jsPDF } from 'jspdf';
 const DownloadButton = ({ setShowEvents }) => {
   const { getNodes } = useReactFlow();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [statusText, setStatusText] = useState('');
 
   const downloadPdf = async () => {
     setIsDownloading(true);
+    setStatusText('Preparing...');
     
-    // 1. Ensure all nodes are visible (logic-wise)
-    setShowEvents(true);
-    
-    // Allow time for React to render any hidden nodes
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const nodes = getNodes();
-    const mainNodes = nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
-    const eventNodes = nodes.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
-
-    // Helper to capture a specific set of nodes
-    const captureNodes = async (targetNodes) => {
-      if (targetNodes.length === 0) return null;
-
-      // 1. Calculate the bounding box of the nodes
-      const bounds = getRectOfNodes(targetNodes);
-      
-      // Add some padding
-      const padding = 50;
-      const x = bounds.x - padding;
-      const y = bounds.y - padding;
-      const width = bounds.width + (padding * 2);
-      const height = bounds.height + (padding * 2);
-
-      // 2. Select the viewport element (contains nodes/edges, but NO controls/panels)
-      const viewportElem = document.querySelector('.react-flow__viewport');
-
-      // 3. Capture high-res PNG
-      // We use a transform to shift the content so the top-left of the bounding box is at (0,0)
-      return await toPng(viewportElem, {
-        backgroundColor: '#ffffff', // White background, no gray dots
-        width: width,
-        height: height,
-        style: {
-          width: width + 'px',
-          height: height + 'px',
-          // Translate content to bring target area into view at (0,0)
-          transform: `translate(${-x}px, ${-y}px) scale(1)`, 
-        },
-        pixelRatio: 3, // 3x resolution for high quality zoom
-      });
-    };
+    // Yield to UI
+    await new Promise(r => setTimeout(r, 10));
 
     try {
+      // 1. Ensure all nodes are visible (logic-wise)
+      setShowEvents(true);
+      
+      // Allow time for React to render any hidden nodes
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const nodes = getNodes();
+      const mainNodes = nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
+      const eventNodes = nodes.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
+
+      // Helper to capture a specific set of nodes
+      const captureNodes = async (targetNodes, label) => {
+        if (targetNodes.length === 0) return null;
+        
+        setStatusText(`Capturing ${label}...`);
+        // Yield to UI before heavy task
+        await new Promise(r => setTimeout(r, 50));
+
+        // 1. Calculate the bounding box of the nodes
+        const bounds = getRectOfNodes(targetNodes);
+        
+        // Add some padding
+        const padding = 50;
+        const x = bounds.x - padding;
+        const y = bounds.y - padding;
+        const width = bounds.width + (padding * 2);
+        const height = bounds.height + (padding * 2);
+
+        // 2. Select the viewport element (contains nodes/edges, but NO controls/panels)
+        const viewportElem = document.querySelector('.react-flow__viewport');
+
+        // 3. Capture high-res PNG
+        // We use a transform to shift the content so the top-left of the bounding box is at (0,0)
+        return await toPng(viewportElem, {
+          backgroundColor: '#ffffff', // White background, no gray dots
+          width: width,
+          height: height,
+          style: {
+            width: width + 'px',
+            height: height + 'px',
+            // Translate content to bring target area into view at (0,0)
+            transform: `translate(${-x}px, ${-y}px) scale(1)`, 
+          },
+          pixelRatio: 2.0, // 2.0x is a good balance for speed vs quality
+        });
+      };
+
       // --- Page 1: Main Flow ---
       let imgData1 = null;
       if (mainNodes.length > 0) {
-        imgData1 = await captureNodes(mainNodes);
+        imgData1 = await captureNodes(mainNodes, 'Main Flow');
       }
       
       // --- Page 2: Event Flows ---
       let imgData2 = null;
       if (eventNodes.length > 0) {
-        imgData2 = await captureNodes(eventNodes);
+        imgData2 = await captureNodes(eventNodes, 'Event Flows');
       }
+
+      setStatusText('Generating PDF...');
+      await new Promise(r => setTimeout(r, 50));
 
       // --- Generate PDF ---
       const pdf = new jsPDF({
@@ -98,6 +110,9 @@ const DownloadButton = ({ setShowEvents }) => {
         addToPdf(imgData2);
       }
 
+      setStatusText('Saving...');
+      await new Promise(r => setTimeout(r, 10));
+      
       pdf.save('flow-visualizer-export.pdf');
 
     } catch (error) {
@@ -105,6 +120,7 @@ const DownloadButton = ({ setShowEvents }) => {
       alert('Failed to generate PDF. See console for details.');
     } finally {
       setIsDownloading(false);
+      setStatusText('');
     }
   };
 
@@ -113,22 +129,24 @@ const DownloadButton = ({ setShowEvents }) => {
       onClick={downloadPdf}
       disabled={isDownloading}
       style={{
-        background: isDownloading ? '#e0e0e0' : 'white',
+        background: isDownloading ? '#f5f5f5' : 'white',
         border: '1px solid #ccc',
         padding: '8px 16px',
         borderRadius: '8px',
-        cursor: isDownloading ? 'wait' : 'pointer',
+        cursor: isDownloading ? 'default' : 'pointer', // Don't show wait cursor
         fontWeight: 'bold',
-        color: '#d81b60', 
+        color: isDownloading ? '#888' : '#d81b60', 
         boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
         fontSize: '13px',
         display: 'flex',
         alignItems: 'center',
-        gap: '8px'
+        gap: '8px',
+        minWidth: '140px', // Prevent layout jump when text changes
+        justifyContent: 'center'
       }}
     >
       <span>{isDownloading ? '⏳' : '📄'}</span> 
-      {isDownloading ? 'Exporting...' : 'Export PDF'}
+      {isDownloading ? statusText : 'Export PDF'}
     </button>
   );
 };
