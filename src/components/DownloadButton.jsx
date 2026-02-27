@@ -99,6 +99,9 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
 
       setStatusText('Generating PDF...');
       
+      // Unfreeze UI immediately after capture
+      setIsCapturing(false);
+
       // Send to worker
       workerRef.current.postMessage({ images });
 
@@ -130,6 +133,7 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
       alert('Failed to generate PDF. See console for details.');
     } finally {
       setIsDownloading(false);
+      // Ensure it's false in case of error
       setIsCapturing(false);
       setStatusText('');
     }
