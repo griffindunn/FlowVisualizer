@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useReactFlow, getRectOfNodes } from 'reactflow';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
+import { toBlob } from 'html-to-image';
+// jsPDF is now imported in the worker
 
 const DownloadButton = ({ setShowEvents }) => {
   const { getNodes } = useReactFlow();
   const [isDownloading, setIsDownloading] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const workerRef = useRef(null);
+
+  useEffect(() => {
+    // Initialize worker
+    workerRef.current = new Worker(new URL('../workers/pdfWorker.js', import.meta.url), { type: 'module' });
+    
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
 
   const downloadPdf = async () => {
     setIsDownloading(true);
@@ -48,8 +58,7 @@ const DownloadButton = ({ setShowEvents }) => {
         const viewportElem = document.querySelector('.react-flow__viewport');
 
         // 3. Capture high-res PNG
-        // We use a transform to shift the content so the top-left of the bounding box is at (0,0)
-        return await toPng(viewportElem, {
+        const blob = await toBlob(viewportElem, {
           backgroundColor: '#ffffff', // White background, no gray dots
           width: width,
           height: height,
@@ -59,61 +68,60 @@ const DownloadButton = ({ setShowEvents }) => {
             // Translate content to bring target area into view at (0,0)
             transform: `translate(${-x}px, ${-y}px) scale(1)`, 
           },
-          pixelRatio: 2.0, // 2.0x is a good balance for speed vs quality
+          pixelRatio: 3.0, // 3x resolution for high quality zoom
         });
+
+        if (!blob) return null;
+
+        // Convert Blob to ArrayBuffer for transfer to worker
+        const buffer = await blob.arrayBuffer();
+        return {
+          data: buffer,
+          width: width * 3.0, // Adjust for pixelRatio
+          height: height * 3.0
+        };
       };
 
       // --- Page 1: Main Flow ---
-      let imgData1 = null;
+      const images = [];
       if (mainNodes.length > 0) {
-        imgData1 = await captureNodes(mainNodes, 'Main Flow');
+        const img1 = await captureNodes(mainNodes, 'Main Flow');
+        if (img1) images.push(img1);
       }
       
       // --- Page 2: Event Flows ---
-      let imgData2 = null;
       if (eventNodes.length > 0) {
-        imgData2 = await captureNodes(eventNodes, 'Event Flows');
+        const img2 = await captureNodes(eventNodes, 'Event Flows');
+        if (img2) images.push(img2);
       }
 
       setStatusText('Generating PDF...');
-      await new Promise(r => setTimeout(r, 50));
+      
+      // Send to worker
+      workerRef.current.postMessage({ images });
 
-      // --- Generate PDF ---
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        compress: true, // Enable compression to reduce file size
+      // Wait for worker response
+      await new Promise((resolve, reject) => {
+        const handler = (e) => {
+          if (e.data.type === 'success') {
+            const url = URL.createObjectURL(e.data.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'flow-visualizer-export.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+            resolve();
+          } else if (e.data.type === 'error') {
+            reject(new Error(e.data.error));
+          }
+          // Remove listener after one response
+          workerRef.current.removeEventListener('message', handler);
+        };
+        workerRef.current.addEventListener('message', handler);
       });
-      
-      const addToPdf = (imgData) => {
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        
-        // Calculate fit dimensions
-        const ratio = Math.min(pdfWidth / imgProps.width, pdfHeight / imgProps.height);
-        const width = imgProps.width * ratio;
-        const height = imgProps.height * ratio;
-        
-        // Center the image
-        const x = (pdfWidth - width) / 2;
-        const y = (pdfHeight - height) / 2;
 
-        pdf.addImage(imgData, 'PNG', x, y, width, height, null, 'FAST'); // 'FAST' compression
-      };
-
-      if (imgData1) {
-        addToPdf(imgData1);
-      }
-
-      if (imgData2) {
-        if (imgData1) pdf.addPage();
-        addToPdf(imgData2);
-      }
-
-      setStatusText('Saving...');
-      await new Promise(r => setTimeout(r, 10));
-      
-      pdf.save('flow-visualizer-export.pdf');
+      setStatusText('Done!');
+      await new Promise(r => setTimeout(r, 500));
 
     } catch (error) {
       console.error('Error generating PDF:', error);
