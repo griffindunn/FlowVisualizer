@@ -70,7 +70,7 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
             // Translate content to bring target area into view at (0,0)
             transform: `translate(${-x}px, ${-y}px) scale(1)`, 
           },
-          pixelRatio: 4.0, // 4x resolution for high quality zoom
+          pixelRatio: 5.0, // 5x resolution for high quality zoom
         });
 
         if (!blob) return null;
@@ -79,8 +79,8 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         const buffer = await blob.arrayBuffer();
         return {
           data: buffer,
-          width: width * 4.0, // Adjust for pixelRatio
-          height: height * 4.0
+          width: width * 5.0, // Adjust for pixelRatio
+          height: height * 5.0
         };
       };
 
@@ -150,7 +150,7 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         borderRadius: '8px',
         cursor: isDownloading ? 'default' : 'pointer', // Don't show wait cursor
         fontWeight: 'bold',
-        color: isDownloading ? '#888' : '#d81b60', 
+        color: isDownloading ? '#888' : '#000000', 
         boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
         fontSize: '13px',
         display: 'flex',
