@@ -40,6 +40,7 @@ import CurvedLoopEdge from './components/edges/CurvedLoopEdge';
 import DetailsPanel from './components/details/DetailsPanel';
 import { transformWxccJson } from './processWxccJson';
 import { getLayoutedElements } from './utils/autoLayout'; 
+import DownloadButton from './components/DownloadButton'; 
 
 const nodeTypes = {
   StartNode, MenuNode, CollectDigitsNode, PlayMessageNode, PlayMusicNode,
@@ -166,6 +167,8 @@ const MainFlow = ({ fileContent }) => {
             >
               {showEvents ? '👁️ Hide Global Events' : '👁️ Show Global Events'}
             </button>
+
+            <DownloadButton setShowEvents={setShowEvents} />
 
              {/* Show/Hide Errors */}
              <button 
