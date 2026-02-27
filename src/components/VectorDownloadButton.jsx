@@ -69,8 +69,8 @@ const VectorDownloadButton = ({ setShowEvents }) => {
         if (!sourceNode || !targetNode) return;
         
         // Check if edge belongs to current set (source or target is in targetNodes)
-        const is relevant = targetNodes.some(n => n.id === sourceNode.id || n.id === targetNode.id);
-        if (!relevant) return;
+        const isRelevant = targetNodes.some(n => n.id === sourceNode.id || n.id === targetNode.id);
+        if (!isRelevant) return;
 
         // Simple center-to-center or handle approximation
         // React Flow nodes have width/height. Handles are usually at sides/bottom.
