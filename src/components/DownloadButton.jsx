@@ -4,7 +4,7 @@ import { toBlob } from 'html-to-image';
 // jsPDF is now imported in the worker
 import PdfWorker from '../workers/pdfWorker.js?worker';
 
-const DownloadButton = ({ setShowEvents }) => {
+const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
   const { getNodes } = useReactFlow();
   const [isDownloading, setIsDownloading] = useState(false);
   const [statusText, setStatusText] = useState('');
@@ -21,6 +21,7 @@ const DownloadButton = ({ setShowEvents }) => {
 
   const downloadPdf = async () => {
     setIsDownloading(true);
+    setIsCapturing(true);
     setStatusText('Preparing...');
     
     // Yield to UI
@@ -69,7 +70,7 @@ const DownloadButton = ({ setShowEvents }) => {
             // Translate content to bring target area into view at (0,0)
             transform: `translate(${-x}px, ${-y}px) scale(1)`, 
           },
-          pixelRatio: 3.0, // 3x resolution for high quality zoom
+          pixelRatio: 4.0, // 4x resolution for high quality zoom
         });
 
         if (!blob) return null;
@@ -78,8 +79,8 @@ const DownloadButton = ({ setShowEvents }) => {
         const buffer = await blob.arrayBuffer();
         return {
           data: buffer,
-          width: width * 3.0, // Adjust for pixelRatio
-          height: height * 3.0
+          width: width * 4.0, // Adjust for pixelRatio
+          height: height * 4.0
         };
       };
 
@@ -129,6 +130,7 @@ const DownloadButton = ({ setShowEvents }) => {
       alert('Failed to generate PDF. See console for details.');
     } finally {
       setIsDownloading(false);
+      setIsCapturing(false);
       setStatusText('');
     }
   };

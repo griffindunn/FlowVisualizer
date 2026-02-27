@@ -77,6 +77,7 @@ const MainFlow = ({ fileContent }) => {
   const [showErrors, setShowErrors] = useState(true); // New Toggle state
   const [isLayouted, setIsLayouted] = useState(false);
   const [originalNodes, setOriginalNodes] = useState([]); 
+  const [isCapturing, setIsCapturing] = useState(false); // New state for capture overlay
 
   // Initial Load
   useMemo(() => {
@@ -141,10 +142,35 @@ const MainFlow = ({ fileContent }) => {
           nodesDraggable={true} 
           fitView
           minZoom={0.05}
+          style={{ pointerEvents: isCapturing ? 'none' : 'all' }}
         >
           <Background color="#f0f0f0" gap={20} />
           <Controls />
           
+          {isCapturing && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              zIndex: 9999,
+              background: 'rgba(255, 255, 255, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: '#333',
+              pointerEvents: 'all', // Capture clicks to prevent interaction
+              cursor: 'wait'
+            }}>
+              {/* Optional: Add a spinner or message here if desired, 
+                  but the button already shows status. 
+                  This overlay mainly blocks interaction. */}
+            </div>
+          )}
+
           <Panel position="top-right" style={{ display: 'flex', gap: '10px' }}>
             
             {/* Show/Hide Events */}
@@ -168,7 +194,7 @@ const MainFlow = ({ fileContent }) => {
               {showEvents ? '👁️ Hide Global Events' : '👁️ Show Global Events'}
             </button>
 
-            <DownloadButton setShowEvents={setShowEvents} />
+            <DownloadButton setShowEvents={setShowEvents} setIsCapturing={setIsCapturing} />
 
              {/* Show/Hide Errors */}
              <button 
