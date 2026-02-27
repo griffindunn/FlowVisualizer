@@ -49,7 +49,7 @@ const DownloadButton = ({ setShowEvents }) => {
           // Translate content to bring target area into view at (0,0)
           transform: `translate(${-x}px, ${-y}px) scale(1)`, 
         },
-        pixelRatio: 1.5, // 1.5x resolution for clarity but manageable file size
+        pixelRatio: 3, // 3x resolution for high quality zoom
       });
     };
 

@@ -13,7 +13,7 @@ const styles = {
     fontFamily: '"CiscoSans", "Helvetica Neue", Arial, sans-serif',
     overflow: 'visible', 
     position: 'relative',
-    border: '1px solid transparent',
+    border: '1px solid #000',
   }),
   header: (config) => ({
     background: config.header,
