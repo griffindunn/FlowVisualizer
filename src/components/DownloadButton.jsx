@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useReactFlow, getRectOfNodes } from 'reactflow';
 import { toBlob } from 'html-to-image';
 // jsPDF is now imported in the worker
+import PdfWorker from '../workers/pdfWorker.js?worker';
 
 const DownloadButton = ({ setShowEvents }) => {
   const { getNodes } = useReactFlow();
@@ -11,7 +12,7 @@ const DownloadButton = ({ setShowEvents }) => {
 
   useEffect(() => {
     // Initialize worker
-    workerRef.current = new Worker(new URL('../workers/pdfWorker.js', import.meta.url), { type: 'module' });
+    workerRef.current = new PdfWorker();
     
     return () => {
       workerRef.current?.terminate();
