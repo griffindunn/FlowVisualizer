@@ -334,8 +334,9 @@ function calculatePageLayout(pageData) {
 // ============================================================
 // FLOW PAGE RENDERER (with clickable links to detail pages)
 // ============================================================
-function renderFlowPage(pdf, layout, nodeToPage) {
+function renderFlowPage(pdf, layout, detailPlan) {
   const { nodeMap, edges, ox, oy } = layout;
+  const { nodeToPage, nodeToDetailY } = detailPlan;
   (edges || []).forEach(edge => {
     const src = nodeMap[edge.source], tgt = nodeMap[edge.target];
     if (!src || !tgt) return;
@@ -352,7 +353,9 @@ function renderFlowPage(pdf, layout, nodeToPage) {
     }
     drawNode(pdf, s);
     if (nodeToPage && nodeToPage[n.id]) {
-      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'Fit' });
+      const detY = (nodeToDetailY && nodeToDetailY[n.id]) || 0;
+      const pdfTop = DET_PAGE_H - detY;
+      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'FitH', top: pdfTop });
     }
   });
 }
@@ -541,7 +544,11 @@ function estimateDetailHeight(sections) {
   sections.forEach(sec => {
     h += DET_SEC_H;
     sec.items.forEach(item => {
-      if (item.type === 'kv') h += DET_ROW_H;
+      if (item.type === 'kv') {
+        const valLen = String(item.v || '').length;
+        const estLines = Math.max(1, Math.ceil(valLen / 72));
+        h += 30 + estLines * 14;
+      }
       else if (item.type === 'code') {
         const lines = estimateCodeLines(item.text);
         h += (item.badge ? 18 : 4) + 10 + lines * DET_CODE_LINE + 8 + 4;
@@ -557,7 +564,8 @@ function estimateDetailHeight(sections) {
 // DETAIL PAGE PLANNER (assigns each node to a page number)
 // ============================================================
 function planDetailPages(detailNodes, startPage) {
-  const map = {};
+  const nodeToPage = {};
+  const nodeToDetailY = {};
   let page = startPage;
   let used = 0;
   const cap = DET_PAGE_H - 2 * DET_MARGIN;
@@ -565,11 +573,12 @@ function planDetailPages(detailNodes, startPage) {
   detailNodes.forEach(n => {
     const h = estimateDetailHeight(n.sections);
     if (used > 0 && used + h > cap) { page++; used = 0; }
-    map[n.id] = page;
+    nodeToPage[n.id] = page;
+    nodeToDetailY[n.id] = DET_MARGIN + used;
     used += h;
   });
 
-  return { nodeToPage: map, totalPages: detailNodes.length > 0 ? page - startPage + 1 : 0 };
+  return { nodeToPage, nodeToDetailY, totalPages: detailNodes.length > 0 ? page - startPage + 1 : 0 };
 }
 
 // ============================================================
@@ -620,25 +629,21 @@ function renderDetailPages(pdf, detailNodes, plan, flowPageNum, flowPageH) {
 
       sec.items.forEach(item => {
         switch (item.type) {
-          case 'kv':
+          case 'kv': {
             pdf.setFont('helvetica', 'normal');
             pdf.setFontSize(9);
             pdf.setTextColor(120, 120, 120);
-            pdf.text(item.k, mx + 8, cy + 10);
+            pdf.text(item.k, mx + 8, cy + 12);
             pdf.setFont('helvetica', 'normal');
             pdf.setFontSize(11);
             pdf.setTextColor(34, 34, 34);
-            {
-              const lines = pdf.splitTextToSize(String(item.v), w - 16);
-              pdf.text(lines[0] || '', mx + 8, cy + 22);
-              if (lines.length > 1) {
-                pdf.setFontSize(9);
-                pdf.setTextColor(100, 100, 100);
-                pdf.text(lines.slice(1, 3).join(' '), mx + 8, cy + 30);
-              }
-            }
-            cy += DET_ROW_H;
+            const valLines = pdf.splitTextToSize(String(item.v), w - 16);
+            valLines.forEach((line, li) => {
+              pdf.text(line, mx + 8, cy + 26 + li * 14);
+            });
+            cy += 30 + valLines.length * 14;
             break;
+          }
 
           case 'code': {
             let codeTop = cy + 4;
@@ -704,8 +709,11 @@ function renderDetailPages(pdf, detailNodes, plan, flowPageNum, flowPageH) {
     pdf.setFontSize(10);
     pdf.setTextColor(2, 119, 189);
     pdf.text('\u2190 Back to ' + String(n.label || 'Flow Diagram').substring(0, 40), mx + 4, cy + 14);
-    const backTop = flowPageH - (n.flowAbsY || 0);
-    pdf.link(mx, cy, w, 18, { pageNumber: flowPageNum, magFactor: 'FitH', top: backTop });
+    // XYZ handler converts top via (currentPageH - top), but we're on a detail page
+    // targeting the flow page, so pre-adjust: pass (DET_PAGE_H - flowPageH + flowAbsY)
+    // so the conversion yields (flowPageH - flowAbsY) = correct PDF coordinate.
+    const adjTop = DET_PAGE_H - flowPageH + (n.flowAbsY || 0);
+    pdf.link(mx, cy, w, 18, { pageNumber: flowPageNum, magFactor: 'XYZ', left: Math.max(0, (n.flowAbsX || 0) - 50), top: adjTop, zoom: 0 });
     cy += DET_BACK_H + DET_GAP;
   });
 }
@@ -726,7 +734,7 @@ self.onmessage = (e) => {
       const detailNodes = Object.values(layout.nodeMap)
         .filter(n => !n.isGroupHeader)
         .sort((a, b) => a.y - b.y || a.x - b.x)
-        .map(n => ({ ...n, sections: getNodeDetailSections(n.type, n.details), flowAbsY: n.y + layout.oy }));
+        .map(n => ({ ...n, sections: getNodeDetailSections(n.type, n.details), flowAbsX: n.x + layout.ox, flowAbsY: n.y + layout.oy }));
 
       flowDataSets.push({ layout, detailNodes });
     });
@@ -758,7 +766,7 @@ self.onmessage = (e) => {
       pdf.internal.pageSize.setWidth(item.layout.pageW);
       pdf.internal.pageSize.setHeight(item.layout.pageH);
 
-      renderFlowPage(pdf, item.layout, item.detailPlan.nodeToPage);
+      renderFlowPage(pdf, item.layout, item.detailPlan);
       renderDetailPages(pdf, item.detailNodes, item.detailPlan, item.flowPageNum, item.layout.pageH);
     });
 
