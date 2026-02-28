@@ -354,10 +354,10 @@ function renderFlowPage(pdf, layout, detailPlan) {
     drawNode(pdf, s);
     if (nodeToPage && nodeToPage[n.id]) {
       const detY = (nodeToDetailY && nodeToDetailY[n.id]) || 0;
-      // XYZ converts top via (currentPageH - top); annotation is on flow page
-      // so pre-adjust: flowPageH - value = DET_PAGE_H - detY → value = flowPageH - DET_PAGE_H + detY
-      const adjTop = pageH - DET_PAGE_H + detY;
-      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'XYZ', left: 0, top: adjTop, zoom: 1 });
+      // jsPDF's XYZ converts top via (lastActivePage.height - top).
+      // After renderDetailPages, lastActivePage is always a detail page (792pt).
+      // So passing detY directly gives: 792 - detY = correct PDF Y on the detail page.
+      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'XYZ', left: 0, top: detY, zoom: 1 });
     }
   });
 }
@@ -763,7 +763,10 @@ self.onmessage = (e) => {
 
     // --- Phase 3: create PDF and render ---
     const pdf = new jsPDF({ unit: 'pt', compress: true });
-    pdf.setDisplayMode('fullpage');
+    // Compute initial zoom so the first flow page fits a typical viewer (~1200x800pt)
+    const firstLayout = renderQueue[0].layout;
+    const initialZoom = Math.max(0.02, Math.min(1, 1200 / firstLayout.pageW, 800 / firstLayout.pageH));
+    pdf.setDisplayMode(initialZoom);
 
     renderQueue.forEach((item, idx) => {
       if (idx > 0) pdf.addPage();
