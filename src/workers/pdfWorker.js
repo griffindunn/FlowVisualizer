@@ -3,31 +3,38 @@ import { jsPDF } from 'jspdf';
 self.onmessage = (e) => {
   const { images } = e.data;
 
+  if (!images || images.length === 0) {
+    self.postMessage({ type: 'error', error: 'No images provided' });
+    return;
+  }
+
   try {
+    // Initialize PDF with the dimensions of the first image
+    // Using 'px' unit ensures 1:1 mapping if we want, or at least consistent scaling
+    // We use the first image's dimensions for the initial page
+    const firstImg = images[0];
     const pdf = new jsPDF({
-      orientation: 'landscape',
+      orientation: firstImg.width > firstImg.height ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [firstImg.width, firstImg.height],
       compress: true,
     });
 
-    images.forEach((image, index) => {
-      if (index > 0) pdf.addPage();
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // Calculate dimensions to fit page
-      const ratio = Math.min(pdfWidth / image.width, pdfHeight / image.height);
-      const w = image.width * ratio;
-      const h = image.height * ratio;
-      const x = (pdfWidth - w) / 2;
-      const y = (pdfHeight - h) / 2;
+    // Add first image
+    const data0 = new Uint8Array(firstImg.data);
+    pdf.addImage(data0, 'PNG', 0, 0, firstImg.width, firstImg.height, null, 'FAST');
 
-      // Create Uint8Array from ArrayBuffer
-      const data = new Uint8Array(image.data);
+    // Add subsequent images
+    for (let i = 1; i < images.length; i++) {
+      const img = images[i];
+      const orientation = img.width > img.height ? 'landscape' : 'portrait';
       
-      // Add image to PDF
-      pdf.addImage(data, 'PNG', x, y, w, h, null, 'FAST');
-    });
+      // Add new page with specific dimensions for this image
+      pdf.addPage([img.width, img.height], orientation);
+      
+      const data = new Uint8Array(img.data);
+      pdf.addImage(data, 'PNG', 0, 0, img.width, img.height, null, 'FAST');
+    }
 
     const pdfBlob = pdf.output('blob');
     self.postMessage({ type: 'success', blob: pdfBlob });

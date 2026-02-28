@@ -60,6 +60,23 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         const viewportElem = document.querySelector('.react-flow__viewport');
 
         // 3. Capture high-res PNG
+        // Calculate dynamic pixel ratio to ensure quality but respect canvas limits
+        const maxDimension = Math.max(width, height);
+        // Safe limit for most browsers (16384px is common max, keep some buffer)
+        const SAFE_LIMIT = 16000;
+        
+        // Target high resolution (e.g. 4.0x)
+        let ratio = 4.0;
+        
+        // If 4.0x exceeds limit, scale down
+        if (maxDimension * ratio > SAFE_LIMIT) {
+             ratio = SAFE_LIMIT / maxDimension;
+        }
+        
+        // Ensure we don't go below 1.0 (unless flow is absolutely massive > 16000px)
+        // And try to maintain at least 2.0 if possible
+        ratio = Math.max(ratio, 1.0);
+
         const blob = await toBlob(viewportElem, {
           backgroundColor: '#ffffff', // White background, no gray dots
           width: width,
@@ -70,7 +87,7 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
             // Translate content to bring target area into view at (0,0)
             transform: `translate(${-x}px, ${-y}px) scale(1)`, 
           },
-          pixelRatio: 6.0, // 6x resolution for high quality zoom
+          pixelRatio: ratio, 
         });
 
         if (!blob) return null;
@@ -79,8 +96,8 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         const buffer = await blob.arrayBuffer();
         return {
           data: buffer,
-          width: width * 6.0, // Adjust for pixelRatio
-          height: height * 6.0
+          width: width * ratio, // Adjust for pixelRatio
+          height: height * ratio
         };
       };
 
