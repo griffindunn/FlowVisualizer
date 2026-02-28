@@ -5,7 +5,7 @@ import { toBlob } from 'html-to-image';
 import PdfWorker from '../workers/pdfWorker.js?worker';
 
 const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
-  const { getNodes, fitView } = useReactFlow();
+  const { getNodes } = useReactFlow();
   const [isDownloading, setIsDownloading] = useState(false);
   const [statusText, setStatusText] = useState('');
   const workerRef = useRef(null);
@@ -51,64 +51,41 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         
         // Add some padding
         const padding = 50;
-        const x = bounds.x - padding;
-        const y = bounds.y - padding;
         const width = bounds.width + (padding * 2);
         const height = bounds.height + (padding * 2);
+        const x = bounds.x - padding;
+        const y = bounds.y - padding;
 
-        // 2. Force Fit View to ensure everything is rendered and within viewport
-        // We use a tiny minZoom to allow fitting huge flows without clipping
-        await fitView({ 
-            nodes: targetNodes, 
-            padding: 0.1, 
-            minZoom: 0.0001,
-            duration: 0 
-        });
-        
-        // Wait for renderer to update
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // 3. Select the viewport element (contains nodes/edges, but NO controls/panels)
-        // We capture the .react-flow__viewport which has the transform applied.
-        // But since we used fitView, the content is scaled down to fit the screen.
-        // We need to calculate the pixelRatio required to restore it to 4x resolution relative to original size.
-        
+        // 2. Select the viewport element (contains nodes/edges, but NO controls/panels)
         const viewportElem = document.querySelector('.react-flow__viewport');
-        const rendererElem = document.querySelector('.react-flow');
-        const rendererRect = rendererElem.getBoundingClientRect();
         
-        // Get current zoom level from the transform style
-        // style.transform is like "translate(10px, 20px) scale(0.5)"
-        const transformStyle = viewportElem.style.transform;
-        const match = transformStyle.match(/scale\(([0-9.]+)\)/);
-        const currentZoom = match ? parseFloat(match[1]) : 1;
+        // 3. Calculate safe pixel ratio
+        const SAFE_LIMIT = 16000; // Conservative limit
+        let ratio = 4.0; // Target high quality
         
-        // We want 4.0x resolution relative to 1:1 scale.
-        // If currentZoom is 0.1, we need pixelRatio = 40.0 to get 4.0x result.
-        let ratio = 4.0 / currentZoom;
-        
-        // Safety Check:
-        // Calculate resulting dimensions
-        const outputWidth = rendererRect.width * ratio;
-        const outputHeight = rendererRect.height * ratio;
-        const maxDim = Math.max(outputWidth, outputHeight);
-        
-        const SAFE_LIMIT = 16000;
-        if (maxDim > SAFE_LIMIT) {
-             ratio = ratio * (SAFE_LIMIT / maxDim);
+        // Check if we exceed limit
+        if (width * ratio > SAFE_LIMIT) {
+            ratio = SAFE_LIMIT / width;
+        }
+        if (height * ratio > SAFE_LIMIT) {
+            const hRatio = SAFE_LIMIT / height;
+            if (hRatio < ratio) ratio = hRatio;
         }
         
-        // Capture
-        const blob = await toBlob(rendererElem, {
-          backgroundColor: '#ffffff', 
-          pixelRatio: ratio, 
-          filter: (node) => {
-              // Exclude controls and panels if we capture container
-              if (node.classList && (node.classList.contains('react-flow__controls') || node.classList.contains('react-flow__panel'))) {
-                  return false;
-              }
-              return true;
-          }
+        // Don't go below 1.0 if possible
+        ratio = Math.max(ratio, 1.0);
+        
+        // 4. Capture
+        const blob = await toBlob(viewportElem, {
+             backgroundColor: '#ffffff',
+             width: width,
+             height: height,
+             style: {
+                 width: width + 'px',
+                 height: height + 'px',
+                 transform: `translate(${-x}px, ${-y}px) scale(1)`
+             },
+             pixelRatio: ratio
         });
 
         if (!blob) return null;
@@ -116,16 +93,10 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         // Convert Blob to ArrayBuffer for transfer to worker
         const buffer = await blob.arrayBuffer();
         
-        // The resulting image dimensions will be elementSize * pixelRatio
-        // We can get exact dimensions from the blob or calculate them
-        // Let's calculate based on what we know
-        const finalW = rendererRect.width * ratio;
-        const finalH = rendererRect.height * ratio;
-
         return {
           data: buffer,
-          width: finalW,
-          height: finalH
+          width: width * ratio,
+          height: height * ratio
         };
       };
 
