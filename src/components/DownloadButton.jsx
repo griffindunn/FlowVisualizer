@@ -1,3 +1,20 @@
+/**
+ * DownloadButton.jsx — PDF Export Button Component
+ *
+ * This component provides the "Export PDF" button in the flow visualizer toolbar.
+ * When clicked, it:
+ *   1. Separates the current React Flow nodes into main flow and event flow groups
+ *   2. Simplifies each node/edge into a serializable data structure (stripping
+ *      React-specific properties that can't be sent to a Web Worker)
+ *   3. Sends the prepared data to a Web Worker (pdfWorker.js) for off-thread
+ *      PDF generation, keeping the UI responsive
+ *   4. Receives the completed PDF blob back and triggers a browser download
+ *
+ * Props:
+ *   - nodes: Array of React Flow node objects (from useNodes or state)
+ *   - edges: Array of React Flow edge objects (from useEdges or state)
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { getNodeConfig } from '../wxccConfig';
 import PdfWorker from '../workers/pdfWorker.js?worker';
@@ -7,6 +24,7 @@ const DownloadButton = ({ nodes, edges }) => {
   const [statusText, setStatusText] = useState('');
   const workerRef = useRef(null);
 
+  // Initialize the Web Worker on mount; terminate on unmount to free resources
   useEffect(() => {
     workerRef.current = new PdfWorker();
     return () => { workerRef.current?.terminate(); };
@@ -15,13 +33,21 @@ const DownloadButton = ({ nodes, edges }) => {
   const downloadPdf = async () => {
     setIsDownloading(true);
     setStatusText('Preparing...');
+    // Yield to the event loop so the status text renders before heavy work begins
     await new Promise(r => setTimeout(r, 10));
 
     try {
+      // Split nodes into main flow (non-event) and event flow (event + group headers)
       const mainNodes = nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
       const eventNodes = nodes.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
 
+      /**
+       * Convert React Flow nodes into a simplified format for the worker.
+       * Strips React component references and extracts only the data needed
+       * for vector PDF rendering: position, colors, labels, and raw details.
+       */
       const prepareNodes = (list) => list.map(n => {
+        // Group headers (e.g. "Event: GLOBAL_EVENTS") are rendered as simple text dividers
         if (n.type === 'groupHeader') {
           return {
             id: n.id, x: n.position.x, y: n.position.y,
@@ -30,6 +56,7 @@ const DownloadButton = ({ nodes, edges }) => {
             subtitle: '', details: {},
           };
         }
+        // Regular nodes: look up their visual config (colors, type label) from wxccConfig
         const config = getNodeConfig(n.data.nodeType);
         return {
           id: n.id, x: n.position.x, y: n.position.y,
@@ -43,6 +70,10 @@ const DownloadButton = ({ nodes, edges }) => {
         };
       });
 
+      /**
+       * Filter edges to only those connecting nodes within the given set,
+       * and simplify to just the fields needed for PDF rendering.
+       */
       const prepareEdges = (nodeIds, allEdges) => {
         const idSet = new Set(nodeIds);
         return allEdges
@@ -62,17 +93,21 @@ const DownloadButton = ({ nodes, edges }) => {
       const mainIds = mainNodes.map(n => n.id);
       const eventIds = eventNodes.map(n => n.id);
 
+      // Build the pages array: one entry per flow (main + event), filtered to non-empty
       const pages = [
         { nodes: prepareNodes(mainNodes), edges: prepareEdges(mainIds, edges) },
         { nodes: prepareNodes(eventNodes), edges: prepareEdges(eventIds, edges) },
       ].filter(p => p.nodes.length > 0);
 
+      // Send data to the Web Worker for off-thread PDF generation
       workerRef.current.postMessage({ pages });
 
+      // Wait for the worker to respond with the completed PDF blob or an error
       await new Promise((resolve, reject) => {
         const handler = (e) => {
           workerRef.current.removeEventListener('message', handler);
           if (e.data.type === 'success') {
+            // Create a temporary download link and trigger the browser save dialog
             const url = URL.createObjectURL(e.data.blob);
             const a = document.createElement('a');
             a.href = url;
