@@ -100,10 +100,10 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
                     const buffer = await blob.arrayBuffer();
                     tiles.push({
                         data: buffer,
-                        x: (col * TILE_SIZE) * PIXEL_RATIO, // Physical PDF position (if PDF unit is px)
-                        y: (row * TILE_SIZE) * PIXEL_RATIO,
-                        width: currentTileW * PIXEL_RATIO,
-                        height: currentTileH * PIXEL_RATIO
+                        x: (col * TILE_SIZE), // Logical position
+                        y: (row * TILE_SIZE),
+                        width: currentTileW, // Logical size
+                        height: currentTileH
                     });
                 }
                 
@@ -113,8 +113,8 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         }
 
         return {
-            width: width * PIXEL_RATIO,
-            height: height * PIXEL_RATIO,
+            width: width, // Logical width
+            height: height,
             tiles: tiles
         };
       };
