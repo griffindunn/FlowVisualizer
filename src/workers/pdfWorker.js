@@ -352,7 +352,7 @@ function renderFlowPage(pdf, layout, nodeToPage) {
     }
     drawNode(pdf, s);
     if (nodeToPage && nodeToPage[n.id]) {
-      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id] });
+      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'Fit' });
     }
   });
 }
@@ -542,7 +542,10 @@ function estimateDetailHeight(sections) {
     h += DET_SEC_H;
     sec.items.forEach(item => {
       if (item.type === 'kv') h += DET_ROW_H;
-      else if (item.type === 'code') h += DET_CODE_PAD + estimateCodeLines(item.text) * DET_CODE_LINE;
+      else if (item.type === 'code') {
+        const lines = estimateCodeLines(item.text);
+        h += (item.badge ? 18 : 4) + 10 + lines * DET_CODE_LINE + 8 + 4;
+      }
       else if (item.type === 'map') h += DET_MAP_H;
     });
   });
@@ -572,7 +575,7 @@ function planDetailPages(detailNodes, startPage) {
 // ============================================================
 // DETAIL PAGE RENDERING
 // ============================================================
-function renderDetailPages(pdf, detailNodes, plan, flowPageNum) {
+function renderDetailPages(pdf, detailNodes, plan, flowPageNum, flowPageH) {
   if (detailNodes.length === 0) return;
 
   let currentPage = -1;
@@ -638,32 +641,34 @@ function renderDetailPages(pdf, detailNodes, plan, flowPageNum) {
             break;
 
           case 'code': {
+            let codeTop = cy + 4;
+
             if (item.badge) {
               pdf.setFillColor(2, 119, 189);
-              pdf.roundedRect(mx + 8, cy + 2, 30, 12, 3, 3, 'F');
+              pdf.roundedRect(mx + 8, cy + 2, 32, 13, 3, 3, 'F');
               pdf.setFont('helvetica', 'bold');
               pdf.setFontSize(7);
               pdf.setTextColor(255, 255, 255);
-              pdf.text(item.badge, mx + 23, cy + 10, { align: 'center' });
+              pdf.text(item.badge, mx + 24, cy + 11, { align: 'center' });
+              codeTop = cy + 18;
             }
 
             pdf.setFont('courier', 'normal');
             pdf.setFontSize(9);
-            const codeLines = pdf.splitTextToSize(String(item.text || ''), w - 32);
-            const boxH = DET_CODE_PAD + codeLines.length * DET_CODE_LINE;
+            const codeLines = pdf.splitTextToSize(String(item.text || ''), w - 40);
+            const boxH = 10 + codeLines.length * DET_CODE_LINE + 8;
 
             pdf.setFillColor(245, 245, 245);
             pdf.setDrawColor(230, 230, 230);
             pdf.setLineWidth(0.5);
-            pdf.roundedRect(mx + 8, cy + (item.badge ? 16 : 2), w - 16, boxH - (item.badge ? 12 : 0), 4, 4, 'FD');
+            pdf.roundedRect(mx + 8, codeTop, w - 16, boxH, 4, 4, 'FD');
 
             pdf.setTextColor(60, 60, 60);
-            const textStartY = cy + (item.badge ? 24 : 10) + DET_CODE_LINE;
             codeLines.forEach((line, li) => {
-              pdf.text(line, mx + 16, textStartY + li * DET_CODE_LINE);
+              pdf.text(line, mx + 16, codeTop + 10 + (li + 0.7) * DET_CODE_LINE);
             });
 
-            cy += boxH + (item.badge ? 16 : 2);
+            cy = codeTop + boxH + 4;
             break;
           }
 
@@ -688,19 +693,20 @@ function renderDetailPages(pdf, detailNodes, plan, flowPageNum) {
       });
     });
 
-    // --- Back to Flow link ---
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(10);
-    pdf.setTextColor(2, 119, 189);
-    pdf.text('\u2190 Back to Flow Diagram', mx + 4, cy + 14);
-    pdf.link(mx, cy, 160, 18, { pageNumber: flowPageNum });
-    cy += DET_BACK_H;
-
     // --- Separator ---
     pdf.setDrawColor(220, 220, 220);
     pdf.setLineWidth(0.5);
-    pdf.line(mx, cy + DET_GAP / 2, mx + w, cy + DET_GAP / 2);
-    cy += DET_GAP;
+    pdf.line(mx, cy + 4, mx + w, cy + 4);
+    cy += 12;
+
+    // --- Back to Flow link (one per node, targets the node's position) ---
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.setTextColor(2, 119, 189);
+    pdf.text('\u2190 Back to ' + String(n.label || 'Flow Diagram').substring(0, 40), mx + 4, cy + 14);
+    const backTop = flowPageH - (n.flowAbsY || 0);
+    pdf.link(mx, cy, w, 18, { pageNumber: flowPageNum, magFactor: 'FitH', top: backTop });
+    cy += DET_BACK_H + DET_GAP;
   });
 }
 
@@ -720,7 +726,7 @@ self.onmessage = (e) => {
       const detailNodes = Object.values(layout.nodeMap)
         .filter(n => !n.isGroupHeader)
         .sort((a, b) => a.y - b.y || a.x - b.x)
-        .map(n => ({ ...n, sections: getNodeDetailSections(n.type, n.details) }));
+        .map(n => ({ ...n, sections: getNodeDetailSections(n.type, n.details), flowAbsY: n.y + layout.oy }));
 
       flowDataSets.push({ layout, detailNodes });
     });
@@ -753,7 +759,7 @@ self.onmessage = (e) => {
       pdf.internal.pageSize.setHeight(item.layout.pageH);
 
       renderFlowPage(pdf, item.layout, item.detailPlan.nodeToPage);
-      renderDetailPages(pdf, item.detailNodes, item.detailPlan, item.flowPageNum);
+      renderDetailPages(pdf, item.detailNodes, item.detailPlan, item.flowPageNum, item.layout.pageH);
     });
 
     self.postMessage({ type: 'success', blob: pdf.output('blob') });
