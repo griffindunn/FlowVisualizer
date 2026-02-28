@@ -478,11 +478,26 @@ function calculatePageLayout(pageData) {
   Object.values(nodeMap).forEach(n => {
     minX = Math.min(minX, n.x);
     minY = Math.min(minY, n.y);
-    maxX = Math.max(maxX, n.x + NODE_W);
+    maxX = Math.max(maxX, n.x + NODE_W + HANDLE_R);
     maxY = Math.max(maxY, n.y + n.totalHeight);
   });
 
-  const margin = 60;
+  // Account for backward edge loops that arc above the topmost node
+  (edges || []).forEach(edge => {
+    const src = nodeMap[edge.source];
+    const tgt = nodeMap[edge.target];
+    if (!src || !tgt) return;
+    const sy = src.y + (src.handles[edge.sourceHandle] || HEADER_H / 2);
+    const ty = tgt.y + 24;
+    const sx = src.x + NODE_W;
+    const tx = tgt.x;
+    if (tx < sx + 50) {
+      const loopTop = Math.min(sy, ty) - 80;
+      minY = Math.min(minY, loopTop);
+    }
+  });
+
+  const margin = 80;
   const contentW = maxX - minX;
   const contentH = maxY - minY;
   const pageW = Math.max(contentW + 2 * margin, 842);
@@ -547,18 +562,14 @@ self.onmessage = (e) => {
       return;
     }
 
-    const first = layouts[0];
-    const pdf = new jsPDF({
-      orientation: first.pageW > first.pageH ? 'landscape' : 'portrait',
-      unit: 'pt',
-      format: [first.pageW, first.pageH],
-      compress: true,
-    });
+    // Use a standard initial format; we override dimensions per-page below
+    const pdf = new jsPDF({ unit: 'pt', compress: true });
 
     layouts.forEach((layout, i) => {
-      if (i > 0) {
-        pdf.addPage([layout.pageW, layout.pageH], layout.pageW > layout.pageH ? 'landscape' : 'portrait');
-      }
+      if (i > 0) pdf.addPage();
+      // Explicitly set exact page dimensions (bypasses format/orientation swapping)
+      pdf.internal.pageSize.setWidth(layout.pageW);
+      pdf.internal.pageSize.setHeight(layout.pageH);
       renderPage(pdf, layout);
     });
 
