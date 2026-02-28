@@ -92,7 +92,7 @@ function getNodeBlueprint(type, details) {
       body.push({ type: 'labelVal', label: 'Store In', value: details.variable || 'Digits' });
       exits.push({ id: 'default', label: 'Success', color: '#444' });
       exits.push({ id: 'timeout', label: 'No-Input Timeout', color: '#999', sep: true });
-      exits.push({ id: 'interrupted', label: 'Unmatched Entry', color: '#999' });
+      exits.push({ id: 'invalid', label: 'Unmatched Entry', color: '#999' });
       exits.push({ id: 'error', label: 'Undefined Error', color: '#999' });
       break;
 
@@ -458,13 +458,12 @@ function drawEdge(pdf, sx, sy, tx, ty, color) {
 }
 
 // ============================================================
-// PAGE RENDERER
+// LAYOUT PRE-CALCULATION (separate from drawing)
 // ============================================================
-function renderPage(pdf, pageData) {
+function calculatePageLayout(pageData) {
   const { nodes, edges } = pageData;
-  if (!nodes || nodes.length === 0) return;
+  if (!nodes || nodes.length === 0) return null;
 
-  // 1. Calculate layouts for all nodes
   const nodeMap = {};
   nodes.forEach(n => {
     if (n.isGroupHeader) {
@@ -475,7 +474,6 @@ function renderPage(pdf, pageData) {
     nodeMap[n.id] = { ...n, ...layout };
   });
 
-  // 2. Calculate bounding box
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   Object.values(nodeMap).forEach(n => {
     minX = Math.min(minX, n.x);
@@ -489,19 +487,19 @@ function renderPage(pdf, pageData) {
   const contentH = maxY - minY;
   const pageW = Math.max(contentW + 2 * margin, 842);
   const pageH = Math.max(contentH + 2 * margin, 595);
-
-  // Offset to center content
   const ox = margin - minX + (pageW - contentW - 2 * margin) / 2;
   const oy = margin - minY + (pageH - contentH - 2 * margin) / 2;
 
-  // Set custom page size
-  const currentPage = pdf.internal.getNumberOfPages();
-  if (currentPage > 1 || nodes.length > 0) {
-    pdf.internal.pageSize.setWidth(pageW);
-    pdf.internal.pageSize.setHeight(pageH);
-  }
+  return { nodeMap, edges, pageW, pageH, ox, oy };
+}
 
-  // 3. Draw edges FIRST (behind nodes)
+// ============================================================
+// PAGE RENDERER (draws onto an already-sized page)
+// ============================================================
+function renderPage(pdf, layout) {
+  const { nodeMap, edges, ox, oy } = layout;
+
+  // Draw edges FIRST (behind nodes)
   (edges || []).forEach(edge => {
     const src = nodeMap[edge.source];
     const tgt = nodeMap[edge.target];
@@ -517,7 +515,7 @@ function renderPage(pdf, pageData) {
     drawEdge(pdf, sx, sy, tx, ty, edge.color);
   });
 
-  // 4. Draw nodes ON TOP
+  // Draw nodes ON TOP
   Object.values(nodeMap).forEach(n => {
     const shifted = { ...n, x: n.x + ox, y: n.y + oy };
 
@@ -543,17 +541,25 @@ self.onmessage = (e) => {
   const { pages } = e.data;
 
   try {
-    // Create first page
+    const layouts = pages.map(p => calculatePageLayout(p)).filter(Boolean);
+    if (layouts.length === 0) {
+      self.postMessage({ type: 'error', error: 'No content to export' });
+      return;
+    }
+
+    const first = layouts[0];
     const pdf = new jsPDF({
-      orientation: 'landscape',
+      orientation: first.pageW > first.pageH ? 'landscape' : 'portrait',
       unit: 'pt',
-      format: [842, 595],
+      format: [first.pageW, first.pageH],
       compress: true,
     });
 
-    pages.forEach((page, i) => {
-      if (i > 0) pdf.addPage([842, 595], 'landscape');
-      renderPage(pdf, page);
+    layouts.forEach((layout, i) => {
+      if (i > 0) {
+        pdf.addPage([layout.pageW, layout.pageH], layout.pageW > layout.pageH ? 'landscape' : 'portrait');
+      }
+      renderPage(pdf, layout);
     });
 
     const pdfBlob = pdf.output('blob');

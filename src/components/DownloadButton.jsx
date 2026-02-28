@@ -1,113 +1,77 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useReactFlow, getRectOfNodes } from 'reactflow';
-import { toBlob } from 'html-to-image';
-// jsPDF is now imported in the worker
+import { getNodeConfig } from '../wxccConfig';
 import PdfWorker from '../workers/pdfWorker.js?worker';
 
-const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
-  const { getNodes } = useReactFlow();
+const DownloadButton = ({ nodes, edges }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [statusText, setStatusText] = useState('');
   const workerRef = useRef(null);
 
   useEffect(() => {
-    // Initialize worker
     workerRef.current = new PdfWorker();
-    
-    return () => {
-      workerRef.current?.terminate();
-    };
+    return () => { workerRef.current?.terminate(); };
   }, []);
 
   const downloadPdf = async () => {
     setIsDownloading(true);
-    setIsCapturing(true);
     setStatusText('Preparing...');
-    
-    // Yield to UI
     await new Promise(r => setTimeout(r, 10));
 
     try {
-      // 1. Ensure all nodes are visible (logic-wise)
-      setShowEvents(true);
-      
-      // Allow time for React to render any hidden nodes
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const nodes = getNodes();
       const mainNodes = nodes.filter(n => !n.data?.isEventNode && n.type !== 'groupHeader');
       const eventNodes = nodes.filter(n => n.data?.isEventNode || n.type === 'groupHeader');
 
-      // Helper to capture a specific set of nodes
-      const captureNodes = async (targetNodes, label) => {
-        if (targetNodes.length === 0) return null;
-        
-        setStatusText(`Capturing ${label}...`);
-        // Yield to UI before heavy task
-        await new Promise(r => setTimeout(r, 50));
-
-        // 1. Calculate the bounding box of the nodes
-        const bounds = getRectOfNodes(targetNodes);
-        
-        // Add some padding
-        const padding = 50;
-        const x = bounds.x - padding;
-        const y = bounds.y - padding;
-        const width = bounds.width + (padding * 2);
-        const height = bounds.height + (padding * 2);
-
-        // 2. Select the viewport element (contains nodes/edges, but NO controls/panels)
-        const viewportElem = document.querySelector('.react-flow__viewport');
-
-        // 3. Capture high-res PNG
-        const blob = await toBlob(viewportElem, {
-          backgroundColor: '#ffffff', // White background, no gray dots
-          width: width,
-          height: height,
-          style: {
-            width: width + 'px',
-            height: height + 'px',
-            // Translate content to bring target area into view at (0,0)
-            transform: `translate(${-x}px, ${-y}px) scale(1)`, 
-          },
-          pixelRatio: 6.0, // 6x resolution for high quality zoom
-        });
-
-        if (!blob) return null;
-
-        // Convert Blob to ArrayBuffer for transfer to worker
-        const buffer = await blob.arrayBuffer();
+      const prepareNodes = (list) => list.map(n => {
+        if (n.type === 'groupHeader') {
+          return {
+            id: n.id, x: n.position.x, y: n.position.y,
+            type: 'groupHeader', label: n.data.label, isGroupHeader: true,
+            headerColor: '#E0E0E0', borderColor: '#BDBDBD', fontColor: '#292929',
+            subtitle: '', details: {},
+          };
+        }
+        const config = getNodeConfig(n.data.nodeType);
         return {
-          data: buffer,
-          width: width * 6.0, // Adjust for pixelRatio
-          height: height * 6.0
+          id: n.id, x: n.position.x, y: n.position.y,
+          type: config.nodeType,
+          label: n.data.label,
+          subtitle: config.label,
+          headerColor: config.header,
+          borderColor: config.border,
+          fontColor: config.font || '#292929',
+          details: n.data.details || {},
         };
+      });
+
+      const prepareEdges = (nodeIds, allEdges) => {
+        const idSet = new Set(nodeIds);
+        return allEdges
+          .filter(e => idSet.has(e.source) && idSet.has(e.target))
+          .map(e => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle,
+            color: e.style?.stroke || '#555',
+          }));
       };
 
-      // --- Page 1: Main Flow ---
-      const images = [];
-      if (mainNodes.length > 0) {
-        const img1 = await captureNodes(mainNodes, 'Main Flow');
-        if (img1) images.push(img1);
-      }
-      
-      // --- Page 2: Event Flows ---
-      if (eventNodes.length > 0) {
-        const img2 = await captureNodes(eventNodes, 'Event Flows');
-        if (img2) images.push(img2);
-      }
+      setStatusText('Building PDF...');
+      await new Promise(r => setTimeout(r, 10));
 
-      setStatusText('Generating PDF...');
-      
-      // Unfreeze UI immediately after capture
-      setIsCapturing(false);
+      const mainIds = mainNodes.map(n => n.id);
+      const eventIds = eventNodes.map(n => n.id);
 
-      // Send to worker
-      workerRef.current.postMessage({ images });
+      const pages = [
+        { nodes: prepareNodes(mainNodes), edges: prepareEdges(mainIds, edges) },
+        { nodes: prepareNodes(eventNodes), edges: prepareEdges(eventIds, edges) },
+      ].filter(p => p.nodes.length > 0);
 
-      // Wait for worker response
+      workerRef.current.postMessage({ pages });
+
       await new Promise((resolve, reject) => {
         const handler = (e) => {
+          workerRef.current.removeEventListener('message', handler);
           if (e.data.type === 'success') {
             const url = URL.createObjectURL(e.data.blob);
             const a = document.createElement('a');
@@ -119,8 +83,6 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
           } else if (e.data.type === 'error') {
             reject(new Error(e.data.error));
           }
-          // Remove listener after one response
-          workerRef.current.removeEventListener('message', handler);
         };
         workerRef.current.addEventListener('message', handler);
       });
@@ -133,14 +95,12 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
       alert('Failed to generate PDF. See console for details.');
     } finally {
       setIsDownloading(false);
-      // Ensure it's false in case of error
-      setIsCapturing(false);
       setStatusText('');
     }
   };
 
   return (
-    <button 
+    <button
       onClick={downloadPdf}
       disabled={isDownloading}
       style={{
@@ -148,19 +108,19 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         border: '1px solid #ccc',
         padding: '8px 16px',
         borderRadius: '8px',
-        cursor: isDownloading ? 'default' : 'pointer', // Don't show wait cursor
+        cursor: isDownloading ? 'default' : 'pointer',
         fontWeight: 'bold',
-        color: isDownloading ? '#888' : '#000000', 
+        color: isDownloading ? '#888' : '#000000',
         boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
         fontSize: '13px',
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        minWidth: '140px', // Prevent layout jump when text changes
-        justifyContent: 'center'
+        minWidth: '140px',
+        justifyContent: 'center',
       }}
     >
-      <span>{isDownloading ? '⏳' : '📄'}</span> 
+      <span>{isDownloading ? '⏳' : '📄'}</span>
       {isDownloading ? statusText : 'Export PDF'}
     </button>
   );
