@@ -335,7 +335,7 @@ function calculatePageLayout(pageData) {
 // FLOW PAGE RENDERER (with clickable links to detail pages)
 // ============================================================
 function renderFlowPage(pdf, layout, detailPlan) {
-  const { nodeMap, edges, ox, oy } = layout;
+  const { nodeMap, edges, ox, oy, pageH } = layout;
   const { nodeToPage, nodeToDetailY } = detailPlan;
   (edges || []).forEach(edge => {
     const src = nodeMap[edge.source], tgt = nodeMap[edge.target];
@@ -354,8 +354,10 @@ function renderFlowPage(pdf, layout, detailPlan) {
     drawNode(pdf, s);
     if (nodeToPage && nodeToPage[n.id]) {
       const detY = (nodeToDetailY && nodeToDetailY[n.id]) || 0;
-      const pdfTop = DET_PAGE_H - detY;
-      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'FitH', top: pdfTop });
+      // XYZ converts top via (currentPageH - top); annotation is on flow page
+      // so pre-adjust: flowPageH - value = DET_PAGE_H - detY → value = flowPageH - DET_PAGE_H + detY
+      const adjTop = pageH - DET_PAGE_H + detY;
+      pdf.link(s.x, s.y, NODE_W, s.totalHeight, { pageNumber: nodeToPage[n.id], magFactor: 'XYZ', left: 0, top: adjTop, zoom: 1 });
     }
   });
 }
@@ -712,7 +714,8 @@ function renderDetailPages(pdf, detailNodes, plan, flowPageNum, flowPageH) {
     // XYZ handler converts top via (currentPageH - top), but we're on a detail page
     // targeting the flow page, so pre-adjust: pass (DET_PAGE_H - flowPageH + flowAbsY)
     // so the conversion yields (flowPageH - flowAbsY) = correct PDF coordinate.
-    const adjTop = DET_PAGE_H - flowPageH + (n.flowAbsY || 0);
+    // Subtract 30pt to add breathing room above the node in the viewport.
+    const adjTop = DET_PAGE_H - flowPageH + (n.flowAbsY || 0) - 30;
     pdf.link(mx, cy, w, 18, { pageNumber: flowPageNum, magFactor: 'XYZ', left: Math.max(0, (n.flowAbsX || 0) - 50), top: adjTop, zoom: 0 });
     cy += DET_BACK_H + DET_GAP;
   });
@@ -760,6 +763,7 @@ self.onmessage = (e) => {
 
     // --- Phase 3: create PDF and render ---
     const pdf = new jsPDF({ unit: 'pt', compress: true });
+    pdf.setDisplayMode('fullpage');
 
     renderQueue.forEach((item, idx) => {
       if (idx > 0) pdf.addPage();
