@@ -29,11 +29,7 @@ self.onmessage = (e) => {
       pdf.addImage(data, 'PNG', x, y, w, h, null, 'FAST');
 
       // --- Add Invisible Text Layer ---
-      if (image.textData && image.textData.length > 0) {
-        // Set text to invisible rendering mode (Mode 3: Neither fill nor stroke)
-        // This makes it selectable but invisible
-        pdf.setTextRenderingMode(3); 
-        
+      if (image.textData && image.textData.length > 0 && image.logicalWidth > 0) {
         // Calculate the scale factor from Logical Pixels (ReactFlow) to PDF Points
         // image.width is the 6x pixel width.
         // image.logicalWidth is the 1x logical width.
@@ -43,31 +39,57 @@ self.onmessage = (e) => {
         
         const scaleFactor = w / image.logicalWidth;
 
-        image.textData.forEach(item => {
-            // Calculate PDF position
-            // item.x/y are relative to the capture box (logical pixels)
-            // We need to scale them and add the offset (x, y) where the image starts
-            const pdfX = x + (item.x * scaleFactor);
-            const pdfY = y + (item.y * scaleFactor);
-            
-            // Scale font size
-            // ReactFlow font is px. PDF font is pt.
-            // 1px approx 0.75pt, but we also scaled the whole image down by `ratio`.
-            // Let's just scale by our calculated factor.
-            const fontSize = item.fontSize * scaleFactor;
+        // Try to set rendering mode to invisible (3)
+        // If API is missing, we skip the invisible text to prevent crash
+        let canRenderText = false;
+        try {
+            if (typeof pdf.setTextRenderingMode === 'function') {
+                pdf.setTextRenderingMode(3); // 3 = Invisible
+                canRenderText = true;
+            } else if (pdf.internal && pdf.internal.write) {
+                pdf.internal.write('3 Tr'); // Raw PDF operator
+                canRenderText = true;
+            } else {
+                console.warn('setTextRenderingMode not supported');
+            }
+        } catch (e) {
+            console.warn('Error setting text rendering mode:', e);
+        }
 
-            pdf.setFontSize(fontSize);
-            pdf.text(String(item.text), pdfX, pdfY);
-        });
-        
-        // Reset rendering mode (good practice, though we are done with this page)
-        pdf.setTextRenderingMode(0);
+        if (canRenderText) {
+            image.textData.forEach(item => {
+                try {
+                    // Calculate PDF position
+                    const pdfX = x + (item.x * scaleFactor);
+                    const pdfY = y + (item.y * scaleFactor);
+                    
+                    const fontSize = item.fontSize * scaleFactor;
+
+                    // Ensure valid numbers
+                    if (!isNaN(pdfX) && !isNaN(pdfY) && !isNaN(fontSize)) {
+                        pdf.setFontSize(fontSize);
+                        pdf.text(String(item.text), pdfX, pdfY);
+                    }
+                } catch (err) {
+                    // Ignore individual text errors
+                }
+            });
+            
+            // Reset rendering mode
+            try {
+                if (typeof pdf.setTextRenderingMode === 'function') {
+                    pdf.setTextRenderingMode(0);
+                } else if (pdf.internal && pdf.internal.write) {
+                    pdf.internal.write('0 Tr');
+                }
+            } catch (e) {}
+        }
       }
     });
 
     const pdfBlob = pdf.output('blob');
     self.postMessage({ type: 'success', blob: pdfBlob });
   } catch (error) {
-    self.postMessage({ type: 'error', error: error.message });
+    self.postMessage({ type: 'error', error: error.message || 'Unknown PDF generation error' });
   }
 };
