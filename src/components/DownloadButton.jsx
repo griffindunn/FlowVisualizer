@@ -70,7 +70,7 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
             // Translate content to bring target area into view at (0,0)
             transform: `translate(${-x}px, ${-y}px) scale(1)`, 
           },
-          pixelRatio: 5.0, // 5x resolution for high quality zoom
+          pixelRatio: 6.0, // 6x resolution for high quality zoom
         });
 
         if (!blob) return null;
@@ -79,8 +79,8 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         const buffer = await blob.arrayBuffer();
         return {
           data: buffer,
-          width: width * 5.0, // Adjust for pixelRatio
-          height: height * 5.0
+          width: width * 6.0, // Adjust for pixelRatio
+          height: height * 6.0
         };
       };
 

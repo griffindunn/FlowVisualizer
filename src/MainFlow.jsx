@@ -41,7 +41,6 @@ import DetailsPanel from './components/details/DetailsPanel';
 import { transformWxccJson } from './processWxccJson';
 import { getLayoutedElements } from './utils/autoLayout'; 
 import DownloadButton from './components/DownloadButton'; 
-import VectorDownloadButton from './components/VectorDownloadButton'; 
 
 const nodeTypes = {
   StartNode, MenuNode, CollectDigitsNode, PlayMessageNode, PlayMusicNode,
@@ -196,7 +195,6 @@ const MainFlow = ({ fileContent }) => {
             </button>
 
             <DownloadButton setShowEvents={setShowEvents} setIsCapturing={setIsCapturing} />
-            <VectorDownloadButton setShowEvents={setShowEvents} />
 
              {/* Show/Hide Errors */}
              <button 
