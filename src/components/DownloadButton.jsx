@@ -75,65 +75,12 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
 
         if (!blob) return null;
 
-        // 4. Extract Text Data for Invisible Overlay
-        const textData = [];
-        targetNodes.forEach(node => {
-            // Calculate position relative to the image capture box
-            // Image (0,0) corresponds to (x,y) in ReactFlow world
-            const nodeRelativeX = node.position.x - x;
-            const nodeRelativeY = node.position.y - y;
-            
-            // Header Text (Label)
-            // Approx position: x + 40, y + 25
-            textData.push({
-                text: node.data.label || 'Node',
-                x: nodeRelativeX + 40,
-                y: nodeRelativeY + 25,
-                fontSize: 14,
-                type: 'header'
-            });
-
-            // Subtitle (Node Type)
-            // Approx position: x + 40, y + 40
-            if (node.data.nodeType) {
-                textData.push({
-                    text: node.data.nodeType,
-                    x: nodeRelativeX + 40,
-                    y: nodeRelativeY + 40,
-                    fontSize: 10,
-                    type: 'subtitle'
-                });
-            }
-
-            // Body Details
-            // Approx start: y + 60
-            if (node.data.details) {
-                let currentY = nodeRelativeY + 60;
-                Object.entries(node.data.details).forEach(([key, val]) => {
-                    if (key === 'activityName') return;
-                    // Simple string representation
-                    const str = `${key}: ${String(val)}`;
-                    textData.push({
-                        text: str,
-                        x: nodeRelativeX + 12,
-                        y: currentY,
-                        fontSize: 10,
-                        type: 'body'
-                    });
-                    currentY += 12; // Line height
-                });
-            }
-        });
-
         // Convert Blob to ArrayBuffer for transfer to worker
         const buffer = await blob.arrayBuffer();
         return {
           data: buffer,
           width: width * 6.0, // Adjust for pixelRatio
-          height: height * 6.0,
-          logicalWidth: width, // Original 1x width
-          logicalHeight: height, // Original 1x height
-          textData: textData
+          height: height * 6.0
         };
       };
 
