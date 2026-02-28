@@ -43,7 +43,6 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         if (targetNodes.length === 0) return null;
         
         setStatusText(`Capturing ${label}...`);
-        // Yield to UI before heavy task
         await new Promise(r => setTimeout(r, 50));
 
         // 1. Calculate the bounding box of the nodes
@@ -53,64 +52,84 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
         const padding = 50;
         const width = bounds.width + (padding * 2);
         const height = bounds.height + (padding * 2);
-        const x = bounds.x - padding;
-        const y = bounds.y - padding;
+        const startX = bounds.x - padding;
+        const startY = bounds.y - padding;
 
-        // 2. Select the viewport element (contains nodes/edges, but NO controls/panels)
         const viewportElem = document.querySelector('.react-flow__viewport');
         
-        // 3. Calculate safe pixel ratio
-        const SAFE_LIMIT = 16000; // Conservative limit
-        let ratio = 4.0; // Target high quality
-        
-        // Check if we exceed limit
-        if (width * ratio > SAFE_LIMIT) {
-            ratio = SAFE_LIMIT / width;
-        }
-        if (height * ratio > SAFE_LIMIT) {
-            const hRatio = SAFE_LIMIT / height;
-            if (hRatio < ratio) ratio = hRatio;
-        }
-        
-        // Don't go below 1.0 if possible
-        ratio = Math.max(ratio, 1.0);
-        
-        // 4. Capture
-        const blob = await toBlob(viewportElem, {
-             backgroundColor: '#ffffff',
-             width: width,
-             height: height,
-             style: {
-                 width: width + 'px',
-                 height: height + 'px',
-                 transform: `translate(${-x}px, ${-y}px) scale(1)`
-             },
-             pixelRatio: ratio
-        });
+        // 2. Define Tiling Strategy
+        // Safe tile size (logical pixels)
+        // If we want 4.0x resolution, max dimension is 16000 / 4 = 4000px
+        const TILE_SIZE = 2000; // 2000 * 4 = 8000px physical size (very safe)
+        const PIXEL_RATIO = 4.0;
 
-        if (!blob) return null;
-
-        // Convert Blob to ArrayBuffer for transfer to worker
-        const buffer = await blob.arrayBuffer();
+        const cols = Math.ceil(width / TILE_SIZE);
+        const rows = Math.ceil(height / TILE_SIZE);
         
+        const tiles = [];
+
+        // 3. Capture Tiles
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const tileX = startX + (col * TILE_SIZE);
+                const tileY = startY + (row * TILE_SIZE);
+                
+                // Calculate current tile width/height (might be smaller at edges)
+                const currentTileW = Math.min(TILE_SIZE, width - (col * TILE_SIZE));
+                const currentTileH = Math.min(TILE_SIZE, height - (row * TILE_SIZE));
+
+                // Move viewport to bring this tile to (0,0)
+                // We use the transform style to shift the viewport
+                // Note: html-to-image captures the element's content. 
+                // We need to shift the content so the top-left of our tile is at (0,0) of the capture area.
+                
+                const blob = await toBlob(viewportElem, {
+                    backgroundColor: '#ffffff',
+                    width: currentTileW,
+                    height: currentTileH,
+                    style: {
+                        width: currentTileW + 'px',
+                        height: currentTileH + 'px',
+                        // Shift content: -tileX, -tileY
+                        transform: `translate(${-tileX}px, ${-tileY}px) scale(1)`
+                    },
+                    pixelRatio: PIXEL_RATIO
+                });
+
+                if (blob) {
+                    const buffer = await blob.arrayBuffer();
+                    tiles.push({
+                        data: buffer,
+                        x: (col * TILE_SIZE) * PIXEL_RATIO, // Physical PDF position (if PDF unit is px)
+                        y: (row * TILE_SIZE) * PIXEL_RATIO,
+                        width: currentTileW * PIXEL_RATIO,
+                        height: currentTileH * PIXEL_RATIO
+                    });
+                }
+                
+                // Yield to UI occasionally
+                if (tiles.length % 4 === 0) await new Promise(r => setTimeout(r, 10));
+            }
+        }
+
         return {
-          data: buffer,
-          width: width * ratio,
-          height: height * ratio
+            width: width * PIXEL_RATIO,
+            height: height * PIXEL_RATIO,
+            tiles: tiles
         };
       };
 
       // --- Page 1: Main Flow ---
-      const images = [];
+      const pages = [];
       if (mainNodes.length > 0) {
-        const img1 = await captureNodes(mainNodes, 'Main Flow');
-        if (img1) images.push(img1);
+        const page1 = await captureNodes(mainNodes, 'Main Flow');
+        if (page1) pages.push(page1);
       }
       
       // --- Page 2: Event Flows ---
       if (eventNodes.length > 0) {
-        const img2 = await captureNodes(eventNodes, 'Event Flows');
-        if (img2) images.push(img2);
+        const page2 = await captureNodes(eventNodes, 'Event Flows');
+        if (page2) pages.push(page2);
       }
 
       setStatusText('Generating PDF...');
@@ -119,7 +138,7 @@ const DownloadButton = ({ setShowEvents, setIsCapturing }) => {
       setIsCapturing(false);
 
       // Send to worker
-      workerRef.current.postMessage({ images });
+      workerRef.current.postMessage({ pages });
 
       // Wait for worker response
       await new Promise((resolve, reject) => {
